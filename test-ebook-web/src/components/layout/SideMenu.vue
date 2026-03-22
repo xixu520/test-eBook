@@ -1,0 +1,131 @@
+<template>
+  <div class="side-menu" :class="{ collapsed: isCollapsed }">
+    <div class="collapse-trigger" @click="isCollapsed = !isCollapsed">
+      <el-icon><Fold v-if="!isCollapsed" /><Expand v-else /></el-icon>
+    </div>
+    
+    <el-menu
+      :default-active="activeCategory"
+      class="el-menu-vertical"
+      :collapse="isCollapsed"
+      @select="handleSelect"
+    >
+      <el-menu-item index="all">
+        <el-icon><Files /></el-icon>
+        <template #title>全部文件</template>
+      </el-menu-item>
+      
+      <el-sub-menu v-for="cat in categoryTree" :key="cat.id" :index="cat.id.toString()">
+        <template #title>
+          <el-icon><Folder /></el-icon>
+          <span>{{ cat.name }}</span>
+        </template>
+        
+        <el-menu-item 
+          v-for="sub in cat.children" 
+          :key="sub.id" 
+          :index="sub.id.toString()"
+        >
+          {{ sub.name }}
+          <span class="count">{{ sub.doc_count }}</span>
+        </el-menu-item>
+      </el-sub-menu>
+    </el-menu>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, computed } from 'vue'
+import { Folder, Files, Fold, Expand } from '@element-plus/icons-vue'
+import { getCategories } from '@/api/category'
+import { useRouter, useRoute } from 'vue-router'
+
+const router = useRouter()
+const route = useRoute()
+
+const isCollapsed = ref(false)
+const categories = ref<any[]>([])
+const activeCategory = computed(() => (route.query.category_id as string) || 'all')
+
+onMounted(async () => {
+  try {
+    const res: any = await getCategories()
+    categories.value = res
+  } catch (error) {
+    console.error(error)
+  }
+})
+
+const categoryTree = computed(() => {
+  const map: any = {}
+  const roots: any[] = []
+  
+  categories.value.forEach(cat => {
+    map[cat.id] = { ...cat, children: [] }
+  })
+  
+  categories.value.forEach(cat => {
+    if (cat.parent_id !== 0 && map[cat.parent_id]) {
+      map[cat.parent_id].children.push(map[cat.id])
+    } else if (cat.parent_id === 0) {
+      roots.push(map[cat.id])
+    }
+  })
+  
+  return roots
+})
+
+const handleSelect = (index: string) => {
+  if (index === 'all') {
+    router.push({ path: '/', query: {} })
+  } else {
+    router.push({ path: '/', query: { category_id: index } })
+  }
+}
+</script>
+
+<style scoped lang="scss">
+.side-menu {
+  width: 240px;
+  height: calc(100vh - 56px);
+  border-right: 1px solid #dcdfe6;
+  background-color: #fff;
+  transition: width 0.3s;
+  display: flex;
+  flex-direction: column;
+  
+  &.collapsed {
+    width: 64px;
+  }
+  
+  .collapse-trigger {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #909399;
+    border-bottom: 1px solid #f2f6fc;
+    
+    &:hover {
+      background-color: #f5f7fa;
+      color: #303133;
+    }
+  }
+  
+  .el-menu-vertical {
+    border-right: none;
+    flex: 1;
+    overflow-y: auto;
+  }
+  
+  .count {
+    font-size: 12px;
+    color: #909399;
+    margin-left: auto;
+    background-color: #f0f2f5;
+    padding: 2px 6px;
+    border-radius: 10px;
+  }
+}
+</style>

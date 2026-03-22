@@ -371,6 +371,10 @@
 
         "verify_status": "pass",     // pending, pass, retry
 
+        "version": "2011",           // 标准版本号
+
+        "is_latest": true,           // 是否为该标准号下的最新版本
+
         // ----------------------------------------------------
 
         // 以下字段后端根据登录用户的角色决定是否返回
@@ -450,6 +454,10 @@
   - `file`: (二进制 PDF 文件)
 
   - `category_id`: 1
+
+  - `standard_no`: "GB 50007-2011" (可选，未传则由 OCR 尝试解析)
+
+  - `version`: "2011" (可选，未传则由 OCR 尝试解析)
 
 - **响应数据**:
 
@@ -539,6 +547,8 @@
 
     "obsolete_date": null,
 
+    "version": "2011",
+
     "category_id": 1
 
   }
@@ -595,7 +605,42 @@
 
 ---
 
-  
+### 4.10 获取文档历史版本
+
+- **URL**: `/documents/history`
+
+- **Method**: `GET`
+
+- **描述**: 根据标准号查询该项标准的所有历史版本记录。
+
+- **请求参数** (Query):
+  - `standard_no`: "GB 50007" (必填)
+
+- **响应数据**:
+```json
+[
+  {
+    "id": 101,
+    "standard_no": "GB50007-2011",
+    "name": "建筑地基基础设计规范",
+    "version": "2011",
+    "issue_date": "2011-07-26",
+    "is_latest": true,
+    "url": "/api/v1/documents/101/preview"
+  },
+  {
+    "id": 105,
+    "standard_no": "GB50007-2002",
+    "name": "建筑地基基础设计规范",
+    "version": "2002",
+    "issue_date": "2002-02-20",
+    "is_latest": false,
+    "url": "/api/v1/documents/105/preview"
+  }
+]
+```
+
+---
 
 ## 5. OCR 与核验模块
 
@@ -844,24 +889,20 @@
 
 - **Method**: `GET`
 
-- **描述**: 获取当前系统配置项。
+- **描述**: 获取当前系统配置项。OCR 密钥字段经脱敏处理。
 
 - **响应数据**:
 
-
 ```json
-
-  {
-
-    "site_name": "建筑标准文件管理系统",
-
-    "allow_registration": false
-
-  }
-
+  {
+    "site_name": "建筑标准文件管理系统",
+    "allow_registration": false,
+    "upload_max_size_mb": 50,
+    "ocr_api_key": "ak3F****j9xP",
+    "ocr_secret_key": "sK2m****vB7q",
+    "ocr_timeout_seconds": 60
+  }
 ```
-
-  
 
 ### 10.2 更新系统设置
 
@@ -869,19 +910,169 @@
 
 - **Method**: `PUT`
 
-- **描述**: 管理员修改系统配置，支持部分更新。
+- **描述**: 管理员修改系统配置，支持部分更新。OCR 密钥字段若含 `****` 则跳过不更新。
 
 - **请求参数** (JSON):
 
+```json
+  {
+    "site_name": "建筑标准文件管理系统",
+    "allow_registration": true,
+    "upload_max_size_mb": 100,
+    "ocr_api_key": "your_full_api_key_here",
+    "ocr_secret_key": "your_full_secret_key_here",
+    "ocr_timeout_seconds": 90
+  }
+```
+
+### 10.3 测试 OCR 连接
+
+- **URL**: `/settings/ocr-test`
+
+- **Method**: `POST`
+
+- **描述**: 使用当前已保存的百度云 OCR Key 测试连接是否有效。
+
+- **响应数据 (成功)**:
 
 ```json
+  { "code": 200, "message": "操作成功", "data": { "status": "ok", "message": "连接成功" } }
+```
 
-  {
+- **响应数据 (失败)**:
 
-    "site_name": "建筑标准文件管理系统",
+```json
+  { "code": 200, "message": "操作成功", "data": { "status": "fail", "message": "API Key 无效或已过期" } }
+```
 
-    "allow_registration": true
+---
 
-  }
+## 11. 仪表盘统计模块 (管理员权限)
 
+### 11.1 获取仪表盘统计数据
+
+- **URL**: `/admin/dashboard`
+
+- **Method**: `GET`
+
+- **描述**: 管理员首页仪表盘所需的汇总统计数据。
+
+- **响应数据**:
+
+```json
+  {
+    "total_documents": 1280,
+    "today_uploads": 5,
+    "pending_verify_count": 23,
+    "pending_ocr_count": 3
+  }
+```
+
+---
+
+## 12. 用户注册模块
+
+### 12.1 用户注册
+
+- **URL**: `/auth/register`
+
+- **Method**: `POST`
+
+- **描述**: 用户自助注册账号。受系统设置 `allow_registration` 开关控制，关闭时返回 403。
+
+- **请求参数** (JSON):
+
+```json
+  {
+    "username": "newuser",
+    "password": "password123"
+  }
+```
+
+- **响应数据 (成功)**:
+
+```json
+  {
+    "code": 200,
+    "message": "注册成功",
+    "data": {
+      "id": 10,
+      "username": "newuser",
+      "role": "user"
+    }
+  }
+```
+
+- **响应数据 (失败 - 注册关闭)**:
+
+```json
+  { "code": 403, "message": "系统当前未开放注册", "data": null }
+```
+
+- **响应数据 (失败 - 用户名已存在)**:
+
+```json
+  { "code": 400, "message": "用户名已被占用", "data": null }
+```
+
+---
+
+## 13. 公告管理模块 (管理员权限)
+
+### 13.1 新增/发布公告
+
+- **URL**: `/announcements`
+
+- **Method**: `POST`
+
+- **请求参数** (JSON):
+
+```json
+  {
+    "content": "系统将于本周五晚进行升级维护..."
+  }
+```
+
+- **响应数据**:
+
+```json
+  {
+    "code": 200,
+    "message": "公告发布成功",
+    "data": {
+      "id": 1,
+      "content": "系统将于本周五晚进行升级维护...",
+      "is_active": true,
+      "update_time": "2026-03-22 10:00:00"
+    }
+  }
+```
+
+### 13.2 修改公告
+
+- **URL**: `/announcements/{id}`
+
+- **Method**: `PUT`
+
+- **请求参数** (JSON):
+
+```json
+  {
+    "content": "更新后的公告内容...",
+    "is_active": true
+  }
+```
+
+### 13.3 关闭公告 (停用)
+
+- **URL**: `/announcements/{id}`
+
+- **Method**: `PUT`
+
+- **描述**: 将 `is_active` 设为 `false` 即可停用，复用修改接口。
+
+- **请求参数** (JSON):
+
+```json
+  { "is_active": false }
 ```
