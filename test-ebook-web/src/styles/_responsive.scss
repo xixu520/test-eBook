@@ -1,0 +1,47 @@
+// Breakpoints based on Element Plus
+$breakpoints: (
+  'xs': 768px,
+  'sm': 768px,
+  'md': 992px,
+  'lg': 1200px,
+  'xl': 1920px
+);
+
+@mixin respond-to($breakpoint) {
+  @if map-has-key($breakpoints, $breakpoint) {
+    $value: map-get($breakpoints, $breakpoint);
+    
+    @if $breakpoint == 'xs' {
+      @media (max-width: ($value - 1px)) {
+        @content;
+      }
+    } @else {
+      @media (min-width: $value) {
+        @content;
+      }
+    }
+  } @else {
+    @warn "Unknown breakpoint: #{$breakpoint}.";
+  }
+}
+
+// Shortcut for mobile only
+@mixin mobile {
+  @media (max-width: 767px) {
+    @content;
+  }
+}
+
+// Shortcut for tablet
+@mixin tablet {
+  @media (min-width: 768px) and (max-width: 991px) {
+    @content;
+  }
+}
+
+// Shortcut for desktop
+@mixin desktop {
+  @media (min-width: 992px) {
+    @content;
+  }
+}

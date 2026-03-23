@@ -13,28 +13,48 @@ export interface DocumentQuery {
 
 export interface Document {
   id: number
-  standard_no: string
-  name: string
+  number: string // standard_no -> number
+  title: string  // name -> title
+  year?: string
   version?: string
-  is_latest?: boolean
-  publisher: string
-  status: 'current' | 'obsolete' | 'upcoming'
   category_id: number
-  category_name: string
-  issue_date: string
-  implement_date: string
-  obsolete_date?: string | null
-  ocr_status: 'pending' | 'processing' | 'completed' | 'failed'
-  verify_status: 'pending' | 'pass' | 'retry'
-  uploader_name: string
-  upload_time: string
+  file_path: string
+  file_size: number
+  status: number // 0: processing, 1: processed, 2: failed
+  ocr_content?: string
+  created_at: string
 }
 
 export function getDocuments(params: DocumentQuery) {
   return request({
-    url: '/documents',
+    url: '/standards/files',
     method: 'get',
     params,
+  })
+}
+
+export function uploadFile(formData: FormData) {
+  return request({
+    url: '/standards/files',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+export function getDocumentDetail(id: number) {
+  return request({
+    url: `/standards/files/${id}`,
+    method: 'get'
+  })
+}
+
+export function deleteDocument(id: number) {
+  return request({
+    url: `/standards/files/${id}`,
+    method: 'delete'
   })
 }
 
@@ -50,5 +70,28 @@ export function getDocumentHistory(standardNo: string) {
     url: '/documents/history',
     method: 'get',
     params: { standard_no: standardNo },
+  })
+}
+
+export function getRecycleBinDocuments() {
+  return request({
+    url: '/recycle-bin/documents',
+    method: 'get'
+  })
+}
+
+export function restoreDocuments(document_ids: number[]) {
+  return request({
+    url: '/recycle-bin/documents/restore',
+    method: 'put',
+    data: { document_ids }
+  })
+}
+
+export function batchDeleteDocuments(document_ids: number[], empty_all = false) {
+  return request({
+    url: '/recycle-bin/documents/batch-delete',
+    method: 'post',
+    data: { document_ids, empty_all }
   })
 }

@@ -1,0 +1,13 @@
+package database
+
+import (
+	"test-ebook-api/internal/model"
+)
+
+func AutoMigrate() error {
+	return WriteDB.AutoMigrate(
+		&model.User{},
+		&model.Category{},
+		&model.StandardFile{},
+	)
+}

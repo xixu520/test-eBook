@@ -1,13 +1,13 @@
 <template>
-  <div class="side-menu" :class="{ collapsed: isCollapsed }">
-    <div class="collapse-trigger" @click="isCollapsed = !isCollapsed">
-      <el-icon><Fold v-if="!isCollapsed" /><Expand v-else /></el-icon>
+  <div class="side-menu" :class="{ collapsed: ui.isSidebarCollapsed, 'is-mobile': isMobile }">
+    <div v-if="!isMobile" class="collapse-trigger" @click="ui.toggleSidebar">
+      <el-icon><Fold v-if="!ui.isSidebarCollapsed" /><Expand v-else /></el-icon>
     </div>
     
     <el-menu
       :default-active="activeCategory"
       class="el-menu-vertical"
-      :collapse="isCollapsed"
+      :collapse="!isMobile && ui.isSidebarCollapsed"
       @select="handleSelect"
     >
       <el-menu-item index="all">
@@ -39,11 +39,14 @@ import { ref, onMounted, computed } from 'vue'
 import { Folder, Files, Fold, Expand } from '@element-plus/icons-vue'
 import { getCategories } from '@/api/category'
 import { useRouter, useRoute } from 'vue-router'
+import { useUiStore } from '@/stores/ui'
+import { useResponsive } from '@/composables/useResponsive'
 
 const router = useRouter()
 const route = useRoute()
+const ui = useUiStore()
+const { isMobile } = useResponsive()
 
-const isCollapsed = ref(false)
 const categories = ref<any[]>([])
 const activeCategory = computed(() => (route.query.category_id as string) || 'all')
 
@@ -81,7 +84,18 @@ const handleSelect = (index: string) => {
   } else {
     router.push({ path: '/', query: { category_id: index } })
   }
+  
+  if (isMobile.value) {
+    ui.closeDrawer()
+  }
 }
+
+// 导出供模板使用
+defineExpose({
+  categoryTree,
+  activeCategory,
+  handleSelect
+})
 </script>
 
 <style scoped lang="scss">
@@ -96,6 +110,11 @@ const handleSelect = (index: string) => {
   
   &.collapsed {
     width: 64px;
+  }
+  
+  &.is-mobile {
+    width: 100%;
+    height: 100%;
   }
   
   .collapse-trigger {

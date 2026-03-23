@@ -13,14 +13,19 @@
     
     <div class="header-content">
       <div class="left-section">
+        <!-- 移动端汉堡菜单 -->
+        <el-icon v-if="isMobile" class="menu-trigger" @click="ui.toggleDrawer">
+          <Menu />
+        </el-icon>
+        
         <img src="@/assets/logo.png" alt="Logo" class="logo" />
-        <span class="site-name">{{ siteName }}</span>
+        <span v-if="!isMobile" class="site-name">{{ siteName }}</span>
       </div>
       
-      <div class="center-section">
+      <div class="center-section" :class="{ 'mobile-hidden': isMobile && !showMobileSearch }">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索标准号或名称 (Ctrl+K)"
+          :placeholder="isMobile ? '搜索' : '搜索标准号或名称 (Ctrl+K)'"
           class="search-input"
           :prefix-icon="Search"
           @keyup.enter="handleSearch"
@@ -29,6 +34,10 @@
       </div>
       
       <div class="right-section">
+        <!-- 移动端搜索触发 -->
+        <el-icon v-if="isMobile" class="mobile-search-trigger" @click="showMobileSearch = !showMobileSearch">
+          <Search />
+        </el-icon>
         <el-switch
           v-model="isDark"
           class="theme-switch"
@@ -40,7 +49,7 @@
         
         <el-dropdown trigger="click">
           <div class="user-info">
-            <el-avatar :size="32" icon="UserFilled" />
+            <el-avatar :size="32" :icon="UserFilled" />
             <span class="username">{{ auth.user?.username }}</span>
           </div>
           <template #dropdown>
@@ -58,13 +67,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Search, Sunny, Moon, UserFilled } from '@element-plus/icons-vue'
+import { Search, Sunny, Moon, UserFilled, Menu } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { getActiveAnnouncement } from '@/api/document'
+import { useResponsive } from '@/composables/useResponsive'
+import { useUiStore } from '@/stores/ui'
 
 const auth = useAuthStore()
+const ui = useUiStore()
 const router = useRouter()
+const { isMobile } = useResponsive()
 
 const siteName = ref('建筑标准文件管理系统')
 const searchKeyword = ref('')
@@ -72,6 +85,7 @@ const showAnnouncement = ref(!sessionStorage.getItem('announcement-closed'))
 const announcement = ref<any>(null)
 const isDark = ref(false)
 const searchInputRef = ref()
+const showMobileSearch = ref(false)
 
 onMounted(async () => {
   try {
@@ -142,6 +156,13 @@ const handleLogout = () => {
       align-items: center;
       gap: 10px;
       
+      .menu-trigger {
+        font-size: 20px;
+        margin-right: 10px;
+        cursor: pointer;
+        color: #606266;
+      }
+      
       .logo {
         height: 32px;
       }
@@ -150,6 +171,7 @@ const handleLogout = () => {
         font-size: 18px;
         font-weight: bold;
         color: #303133;
+        white-space: nowrap;
       }
     }
     
@@ -157,6 +179,13 @@ const handleLogout = () => {
       flex: 1;
       max-width: 500px;
       margin: 0 20px;
+      transition: all 0.3s;
+      
+      &.mobile-hidden {
+        @media (max-width: 767px) {
+          display: none;
+        }
+      }
       
       .search-input {
         :deep(.el-input__wrapper) {
@@ -169,6 +198,12 @@ const handleLogout = () => {
       display: flex;
       align-items: center;
       gap: 20px;
+      
+      .mobile-search-trigger {
+        font-size: 20px;
+        cursor: pointer;
+        color: #606266;
+      }
       
       .user-info {
         display: flex;
@@ -186,6 +221,10 @@ const handleLogout = () => {
         .username {
           font-size: 14px;
           color: #606266;
+          
+          @media (max-width: 480px) {
+            display: none;
+          }
         }
       }
     }

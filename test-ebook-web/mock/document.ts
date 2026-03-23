@@ -124,6 +124,26 @@ const documentList: Document[] = [
   },
 ]
 
+const recycleBinList: Document[] = [
+  {
+    id: 901,
+    standard_no: 'GB 50010-2010',
+    name: '混凝土结构设计规范',
+    category_id: 2,
+    category_name: '结构工程',
+    publisher: '住房和城乡建设部',
+    status: 'current',
+    issue_date: '2010-08-18',
+    implement_date: '2011-07-01',
+    version: '2010',
+    is_latest: true,
+    ocr_status: 'completed',
+    verify_status: 'pass',
+    uploader_name: 'admin',
+    upload_time: '2023-08-01 10:00:00',
+  }
+]
+
 export default [
   {
     url: '/api/v1/documents',
@@ -197,6 +217,40 @@ export default [
           update_time: '2026-03-22 09:00:00',
         },
       }
+    },
+  },
+  {
+    url: '/api/v1/recycle-bin/documents',
+    method: 'get',
+    response: () => {
+      return {
+        code: 200,
+        message: '获取成功',
+        data: {
+          total: recycleBinList.length,
+          list: recycleBinList,
+        },
+      }
+    },
+  },
+  {
+    url: '/api/v1/recycle-bin/documents/restore',
+    method: 'put',
+    response: () => {
+      return { code: 200, message: '还原成功', data: null }
+    },
+  },
+  {
+    url: '/api/v1/recycle-bin/documents/batch-delete',
+    method: 'post',
+    response: ({ body }: any) => {
+      if (body?.empty_all === undefined || body?.document_ids === undefined) {
+        return { code: 400, message: '参数校验失败：缺失 empty_all' }
+      }
+      if (body.empty_all) {
+        return { code: 200, message: '回收站已清空', data: null }
+      }
+      return { code: 200, message: '彻底删除成功', data: null }
     },
   },
 ] as MockMethod[]

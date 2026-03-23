@@ -32,7 +32,17 @@
         
         <el-menu-item index="/admin/documents">
           <el-icon><Document /></el-icon>
-          <template #title>文档库</template>
+          <template #title>文档管理</template>
+        </el-menu-item>
+        
+        <el-menu-item index="/admin/recycle" v-if="hasAccess(['admin'])">
+          <el-icon><Delete /></el-icon>
+          <template #title>回收站</template>
+        </el-menu-item>
+        
+        <el-menu-item index="/admin/audit" v-if="hasAccess(['admin'])">
+          <el-icon><Memo /></el-icon>
+          <template #title>审计日志</template>
         </el-menu-item>
         
         <el-menu-item index="/admin/users" v-if="hasAccess(['admin'])">
@@ -92,7 +102,7 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
-  DataBoard, Folder, Document, User, Back, Fold, Expand, UserFilled, Cpu, Setting 
+  DataBoard, Folder, Document, User, Back, Fold, Expand, UserFilled, Cpu, Setting, Delete, Memo 
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 

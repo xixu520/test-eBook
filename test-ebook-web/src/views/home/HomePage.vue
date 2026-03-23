@@ -2,7 +2,42 @@
   <div class="home-page">
     <!-- 搜索与筛选区域 -->
     <el-card class="filter-card" shadow="never">
-      <el-form :inline="true" :model="filters" class="filter-form">
+      <el-collapse v-if="isMobile" v-model="activeFilters" class="mobile-filter-collapse">
+        <el-collapse-item name="filters">
+          <template #title>
+            <div class="mobile-filter-header">
+              <el-icon><Search /></el-icon>
+              <span>筛选条件</span>
+              <el-tag v-if="hasActiveFilters" size="small" type="primary" round style="margin-left: 10px">已启用</el-tag>
+            </div>
+          </template>
+          <div class="mobile-filter-content">
+            <el-form :model="filters" label-position="top">
+              <el-form-item label="关键字">
+                <el-input v-model="filters.keyword" placeholder="搜索标准号或名称" clearable @keyup.enter="loadData" />
+              </el-form-item>
+              <el-form-item label="发布机构">
+                <el-select v-model="filters.publisher" placeholder="全部机构" clearable style="width: 100%">
+                  <el-option v-for="p in publishers" :key="p" :label="p" :value="p" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="实施状态">
+                <el-select v-model="filters.status" placeholder="全部状态" clearable style="width: 100%">
+                  <el-option label="现行" value="current" />
+                  <el-option label="废止" value="obsolete" />
+                  <el-option label="即将实施" value="upcoming" />
+                </el-select>
+              </el-form-item>
+              <div class="filter-actions">
+                <el-button type="primary" @click="loadData">查询</el-button>
+                <el-button @click="resetFilters">重置</el-button>
+              </div>
+            </el-form>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+
+      <el-form v-else :inline="true" :model="filters" class="filter-form">
         <el-form-item label="关键字">
           <el-input v-model="filters.keyword" placeholder="搜索标准号或名称" clearable @keyup.enter="loadData" />
         </el-form-item>
@@ -14,7 +49,8 @@
             placeholder="请选择分类"
             clearable
             check-strictly
-            :props="{ label: 'name' }"
+            node-key="id"
+            :props="{ label: 'name', value: 'id' }"
           />
         </el-form-item>
         
@@ -31,17 +67,6 @@
             <el-option label="即将实施" value="upcoming" />
           </el-select>
         </el-form-item>
-
-        <el-form-item label="发布日期">
-          <el-date-picker
-            v-model="filters.dateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-          />
-        </el-form-item>
         
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="loadData">查询</el-button>
@@ -51,14 +76,17 @@
     </el-card>
 
     <!-- 操作工具栏 -->
-    <div class="action-bar">
+    <div class="action-bar" :class="{ 'is-mobile': isMobile }">
       <div class="left">
-        <el-button type="primary" :icon="Upload" v-if="canUpload" @click="uploadVisible = true">上传文件</el-button>
-        <el-button :icon="Download" :disabled="!selectedIds.length">批量下载</el-button>
-        <el-button :icon="Operation" :disabled="!selectedIds.length">批量分类</el-button>
-        <el-button type="danger" :icon="Delete" :disabled="!selectedIds.length" v-if="canDelete">批量删除</el-button>
+        <el-button type="primary" :icon="Upload" v-if="canUpload" @click="uploadVisible = true">{{ isMobile ? '' : '上传文件' }}</el-button>
+        <el-button-group v-if="isMobile">
+          <el-button :icon="Download" :disabled="!selectedIds.length" />
+        </el-button-group>
+        <template v-else>
+          <el-button :icon="Download" :disabled="!selectedIds.length">批量下载</el-button>
+        </template>
       </div>
-      <div class="right">
+      <div class="right" v-if="!isMobile">
         <el-button-group>
           <el-button :icon="Download">导出 Excel</el-button>
           <el-button :icon="Setting">列配置</el-button>
@@ -85,8 +113,8 @@
         </template>
       </el-table-column>
       <el-table-column prop="name" label="名称" min-width="250" show-overflow-tooltip />
-      <el-table-column prop="category_name" label="所属分类" width="150" />
-      <el-table-column prop="issue_date" label="发布日期" width="120" sortable class-name="mono-font" />
+      <el-table-column prop="category_name" label="所属分类" width="150" v-if="!isMobile" />
+      <el-table-column prop="issue_date" label="发布日期" width="120" sortable class-name="mono-font" v-if="!isMobile" />
       <el-table-column prop="status" label="实施状态" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="getStatusTagType(row.status)" size="small">
@@ -94,32 +122,34 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="ocr_status" label="OCR 状态" width="120" align="center">
+      <el-table-column prop="ocr_status" label="OCR 状态" width="100" align="center" v-if="!isMobile">
         <template #default="{ row }">
-          <el-tag :type="getOcrTagType(row.ocr_status)">
+          <el-tag :type="getOcrTagType(row.ocr_status)" size="small">
             {{ getOcrStatusText(row.ocr_status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="verify_status" label="核验状态" width="120" align="center">
+      <el-table-column prop="verify_status" label="核验状态" width="100" align="center" v-if="!isMobile">
         <template #default="{ row }">
-          <el-tag :type="getVerifyTagType(row.verify_status)" effect="plain">
+          <el-tag :type="getVerifyTagType(row.verify_status)" effect="plain" size="small">
             {{ getVerifyStatusText(row.verify_status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right" align="center">
+      <el-table-column label="操作" :width="isMobile ? 80 : 200" :fixed="isMobile ? false : 'right'" align="center">
         <template #default="{ row }">
-          <el-button link type="primary" :icon="View" @click="handlePreview(row)">预览</el-button>
-          <el-button link type="primary" :icon="Timer" @click="handleShowHistory(row)">历史</el-button>
-          <el-button link type="primary" :icon="Download" @click="handleDownload(row)">下载</el-button>
-          <el-dropdown trigger="click" v-if="isAdmin">
-            <el-button link type="primary" :icon="MoreFilled" style="margin-left: 12px" />
+          <template v-if="!isMobile">
+            <el-button link type="primary" :icon="View" :disabled="row.ocr_status !== 'completed'" @click="handlePreview(row)">预览</el-button>
+            <el-button link type="primary" :icon="Timer" :disabled="row.ocr_status !== 'completed'" @click="handleShowHistory(row)">历史</el-button>
+            <el-button link type="primary" :icon="Download" @click="handleDownload(row)">下载</el-button>
+          </template>
+          <el-dropdown v-else trigger="click">
+            <el-button link type="primary" :icon="MoreFilled" />
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item :icon="Edit">编辑信息</el-dropdown-item>
-                <el-dropdown-item :icon="Refresh">重新 OCR</el-dropdown-item>
-                <el-dropdown-item divided type="danger" :icon="Delete">删除文件</el-dropdown-item>
+                <el-dropdown-item :icon="View" :disabled="row.ocr_status !== 'completed'" @click="handlePreview(row)">预览</el-dropdown-item>
+                <el-dropdown-item :icon="Download" @click="handleDownload(row)">下载</el-dropdown-item>
+                <el-dropdown-item :icon="Timer" :disabled="row.ocr_status !== 'completed'" @click="handleShowHistory(row)">历史</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -128,13 +158,14 @@
     </el-table>
 
     <!-- 分页器 -->
-    <div class="pagination-container">
+    <div class="pagination-container" :class="{ 'is-mobile': isMobile }">
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.size"
         :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
+        :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
         :total="pagination.total"
+        :small="isMobile"
         @size-change="loadData"
         @current-change="loadData"
       />
@@ -190,8 +221,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { 
-  Search, RefreshLeft, Upload, Download, Delete, Operation, 
-  View, Edit, Setting, MoreFilled, Refresh, Timer 
+  Search, RefreshLeft, Upload, Download, 
+  View, Timer, Setting, MoreFilled
 } from '@element-plus/icons-vue'
 import { getDocuments, getDocumentHistory } from '@/api/document'
 import { getCategories } from '@/api/category'
@@ -200,13 +231,13 @@ import { useRoute } from 'vue-router'
 import PdfPreview from '@/components/document/PdfPreview.vue'
 import UploadDialog from '@/components/document/UploadDialog.vue'
 import { ElMessage } from 'element-plus'
+import { useResponsive } from '@/composables/useResponsive'
 
 const auth = useAuthStore()
 const route = useRoute()
+const { isMobile } = useResponsive()
 
-const isAdmin = computed(() => auth.user?.role === 'admin')
 const canUpload = computed(() => auth.user && ['admin', 'editor'].includes(auth.user.role))
-const canDelete = computed(() => auth.user?.role === 'admin')
 
 const loading = ref(false)
 const documentList = ref<any[]>([])
@@ -227,6 +258,11 @@ const filters = reactive({
   publisher: '',
   status: '',
   dateRange: []
+})
+
+const activeFilters = ref([])
+const hasActiveFilters = computed(() => {
+  return !!(filters.keyword || filters.publisher || filters.status)
 })
 
 const publishers = ['住房和城乡建设部', '国家市场监督管理总局', '中国建筑工业出版社']
@@ -379,6 +415,22 @@ const getStatusText = (status: string) => {
     :deep(.el-card__body) {
       padding-bottom: 2px;
     }
+    
+    .mobile-filter-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    
+    .filter-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      .el-button {
+        flex: 1;
+      }
+    }
   }
   
   .action-bar {
@@ -386,6 +438,10 @@ const getStatusText = (status: string) => {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 16px;
+    
+    &.is-mobile {
+      padding: 0 5px;
+    }
     
     .left {
       display: flex;
@@ -401,6 +457,10 @@ const getStatusText = (status: string) => {
     margin-top: 20px;
     display: flex;
     justify-content: flex-end;
+    
+    &.is-mobile {
+      justify-content: center;
+    }
   }
 }
 </style>

@@ -1,0 +1,11 @@
+.git
+.vscode
+.gemini
+data/*
+uploads/*
+vendor/
+bin/
+*.exe
+*.log
+tmp/
+node_modules/

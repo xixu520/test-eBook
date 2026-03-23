@@ -6,13 +6,23 @@
     :before-close="handleClose"
     class="upload-dialog"
   >
-    <el-form :model="form" label-width="80px">
+    <el-form :model="form" label-width="100px" class="upload-form">
       <el-form-item label="标准号" required>
-        <el-input v-model="form.standard_no" placeholder="请输入标准号 (如 GB 50007-2011)" clearable />
+        <el-input 
+          v-model="form.standard_no" 
+          placeholder="请输入标准号" 
+          clearable 
+          class="mono-font"
+        />
       </el-form-item>
 
       <el-form-item label="版本/年份" required>
-        <el-input v-model="form.version" placeholder="请输入版本号或年份 (如 2011)" clearable />
+        <el-input 
+          v-model="form.version" 
+          placeholder="请输入年份" 
+          clearable 
+          class="mono-font"
+        />
       </el-form-item>
 
       <el-form-item label="所属分类" required>
@@ -21,7 +31,8 @@
           :data="categoryTree"
           placeholder="请选择分类"
           check-strictly
-          :props="{ label: 'name' }"
+          node-key="id"
+          :props="{ label: 'name', value: 'id' }"
           style="width: 100%"
         />
       </el-form-item>
@@ -165,6 +176,16 @@ const startUpload = async () => {
 .upload-dialog {
   .upload-area {
     width: 100%;
+  }
+
+  .upload-form {
+    margin-right: 20px;
+  }
+
+  .mono-font {
+    :deep(.el-input__inner) {
+      font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
+    }
   }
   
   .progress-list {

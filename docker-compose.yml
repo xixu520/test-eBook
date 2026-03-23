@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ./test-ebook-api
+      dockerfile: Dockerfile
+    container_name: test-ebook-backend
+    ports:
+      - "8182:8182"
+    volumes:
+      - backend-data:/app/data
+      - backend-uploads:/app/uploads
+    restart: always
+
+  frontend:
+    build:
+      context: ./test-ebook-web
+      dockerfile: Dockerfile
+    container_name: test-ebook-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  backend-data:
+  backend-uploads:

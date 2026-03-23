@@ -16,7 +16,7 @@
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       >
         <el-table-column prop="name" label="分类名称" />
-        <el-table-column prop="sort_order" label="排序值" width="100" align="center" />
+        <el-table-column prop="order" label="排序值" width="100" align="center" />
         <el-table-column prop="doc_count" label="文档数" width="120" align="center" />
         <el-table-column label="操作" width="250" align="center">
           <template #default="{ row }">
@@ -40,8 +40,8 @@
         <el-form-item label="分类名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入分类名称" />
         </el-form-item>
-        <el-form-item label="排序值" prop="sort_order">
-          <el-input-number v-model="form.sort_order" :min="0" />
+        <el-form-item label="排序值" prop="order">
+          <el-input-number v-model="form.order" :min="0" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { getCategories } from '@/api/category'
+import { getCategories, deleteCategory, addCategory } from '@/api/category'
 import { ElMessageBox, ElMessage } from 'element-plus'
 
 const categories = ref<any[]>([])
@@ -69,7 +69,7 @@ const form = ref({
   id: undefined,
   name: '',
   parent_id: 0,
-  sort_order: 0
+  order: 0 // sort_order -> order in backend
 })
 
 const rules = {
@@ -84,7 +84,7 @@ const loadData = async () => {
   loading.value = true
   try {
     const res: any = await getCategories()
-    categories.value = res
+    categories.value = res // Backend returns []Category
   } catch (error) {
     console.error(error)
   } finally {
@@ -112,7 +112,7 @@ const handleAdd = (parentId: number) => {
     id: undefined,
     name: '',
     parent_id: parentId,
-    sort_order: 0
+    order: 0
   }
   dialogVisible.value = true
 }
@@ -127,22 +127,30 @@ const handleDelete = (row: any) => {
   ElMessageBox.confirm(`确定要删除分类“${row.name}”吗？`, '提示', {
     type: 'warning'
   }).then(async () => {
-    // Mock 删除逻辑
-    ElMessage.success('删除成功')
-    // 这里实际应调用 API 并重新加载数据
-  })
+    try {
+      await deleteCategory(row.id)
+      ElMessage.success('删除成功')
+      loadData()
+    } catch (e) {}
+  }).catch(() => {})
 }
 
 const submitForm = async () => {
   await formRef.value.validate()
   submitting.value = true
-  // Mock 提交逻辑
-  setTimeout(() => {
-    ElMessage.success(dialogType.value === 'add' ? '添加成功' : '修改成功')
+  try {
+    if (dialogType.value === 'add') {
+      await addCategory(form.value as any)
+      ElMessage.success('添加成功')
+    } else {
+      ElMessage.warning('编辑功能待后端支持')
+    }
     dialogVisible.value = false
-    submitting.value = false
     loadData()
-  }, 500)
+  } catch (err) {
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 

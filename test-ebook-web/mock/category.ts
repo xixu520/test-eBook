@@ -19,4 +19,18 @@ export default [
       }
     },
   },
+  {
+    url: new RegExp('/api/v1/categories/.*'),
+    method: 'delete',
+    response: ({ url }: any) => {
+      const id = url.split('/').pop()
+      if (id === '1') {
+        return { code: 400, message: '删除失败：该分类下存在子分类，请先移除或转移子分类' }
+      }
+      if (id === '2') {
+        return { code: 400, message: '删除失败：该分类下仍有标准文件，请先转移或删除文件' }
+      }
+      return { code: 200, message: '分类删除成功' }
+    }
+  }
 ] as MockMethod[]

@@ -2,7 +2,21 @@
   <div class="main-layout">
     <TopNavBar />
     <div class="main-container">
-      <SideMenu />
+      <!-- 桌面端侧边栏 -->
+      <SideMenu v-if="!isMobile" />
+      
+      <!-- 移动端抽屉侧边栏 -->
+      <el-drawer
+        v-if="isMobile"
+        v-model="ui.isDrawerVisible"
+        direction="ltr"
+        size="280px"
+        :with-header="false"
+        class="mobile-drawer"
+      >
+        <SideMenu />
+      </el-drawer>
+      
       <div class="main-content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
@@ -17,6 +31,11 @@
 <script setup lang="ts">
 import TopNavBar from './TopNavBar.vue'
 import SideMenu from './SideMenu.vue'
+import { useResponsive } from '@/composables/useResponsive'
+import { useUiStore } from '@/stores/ui'
+
+const { isMobile } = useResponsive()
+const ui = useUiStore()
 </script>
 
 <style scoped lang="scss">
@@ -30,13 +49,21 @@ import SideMenu from './SideMenu.vue'
     flex: 1;
     display: flex;
     overflow: hidden;
+    position: relative;
     
     .main-content {
       flex: 1;
       padding: 0;
       overflow-y: auto;
       background-color: #f5f7fa;
+      transition: all 0.3s;
     }
+  }
+}
+
+:deep(.mobile-drawer) {
+  .el-drawer__body {
+    padding: 0;
   }
 }
 

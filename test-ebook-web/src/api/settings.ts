@@ -21,3 +21,11 @@ export function getSystemStatus() {
     method: 'get',
   })
 }
+
+export function testOcrConnection(data: any) {
+  return request({
+    url: '/settings/test-ocr',
+    method: 'post',
+    data,
+  })
+}

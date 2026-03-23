@@ -101,8 +101,17 @@ const handleLogin = async () => {
   background-color: #f5f7fa;
   
   .login-card {
-    width: 420px;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 20px;
     border-radius: 12px;
+    
+    @media (max-width: 480px) {
+      margin: 0 10px;
+      .el-card__body {
+        padding: 20px 15px;
+      }
+    }
     
     .login-header {
       text-align: center;

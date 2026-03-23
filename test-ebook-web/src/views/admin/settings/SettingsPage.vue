@@ -6,11 +6,46 @@
         <el-form :model="settings.ocr" label-width="120px" style="max-width: 600px">
           <el-form-item label="OCR 引擎">
             <el-select v-model="settings.ocr.engine" placeholder="请选择 OCR 引擎" style="width: 100%">
-              <el-option label="PaddleOCR (推荐 - 高精度)" value="paddleocr" />
-              <el-option label="Tesseract OCR (开源 - 多语言)" value="tesseract" />
-              <el-option label="百度 AI OCR (导出 API)" value="baidu" />
+              <el-option label="PaddleOCR (官方 API)" value="paddleocr" />
+              <el-option label="Tesseract OCR (开源多语言)" value="tesseract" />
+              <el-option label="百度 AI OCR (公有云 API)" value="baidu" />
             </el-select>
           </el-form-item>
+
+          <template v-if="settings.ocr.engine === 'paddleocr'">
+            <el-form-item label="Token (Auth)" required>
+              <el-input v-model="settings.ocr.paddle_config.token" placeholder="请输入身份 Token (Bearer)" show-password />
+            </el-form-item>
+            <el-form-item label="云端解析模型">
+              <el-input v-model="settings.ocr.paddle_config.model" placeholder="模型名称 (如 PaddleOCR-VL-1.5)" clearable />
+            </el-form-item>
+            <el-form-item label="增强处理选项" class="advanced-options">
+              <div class="options-wrapper">
+                <el-checkbox v-model="settings.ocr.paddle_config.use_doc_orientation_classify">应用文档方向分类还原 (useDocOrientationClassify)</el-checkbox>
+                <el-checkbox v-model="settings.ocr.paddle_config.use_doc_unwarping">应用文档去畸变修正 (useDocUnwarping)</el-checkbox>
+                <el-checkbox v-model="settings.ocr.paddle_config.use_chart_recognition">应用图表解析 (useChartRecognition)</el-checkbox>
+              </div>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="success" plain @click="handleTestConnection" :loading="testing">测试连接</el-button>
+            </el-form-item>
+          </template>
+
+          <template v-if="settings.ocr.engine === 'baidu'">
+            <el-form-item label="App ID" required>
+              <el-input v-model="settings.ocr.baidu_config.app_id" placeholder="请输入百度 OCR 的 App ID" />
+            </el-form-item>
+            <el-form-item label="API Key" required>
+              <el-input v-model="settings.ocr.baidu_config.api_key" placeholder="请输入 API Key" show-password />
+            </el-form-item>
+            <el-form-item label="Secret Key" required>
+              <el-input v-model="settings.ocr.baidu_config.secret_key" placeholder="请输入 Secret Key" show-password />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="success" plain @click="handleTestConnection" :loading="testing">测试连接</el-button>
+            </el-form-item>
+          </template>
+
           <el-form-item label="识别语言">
             <el-checkbox-group v-model="settings.ocr.language">
               <el-checkbox label="ch">简体中文</el-checkbox>
@@ -95,11 +130,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { getSettings, saveSettings, getSystemStatus } from '@/api/settings'
+import { getSettings, saveSettings, getSystemStatus, testOcrConnection } from '@/api/settings'
 import { ElMessage } from 'element-plus'
 
 const activeTab = ref('ocr')
 const saving = ref(false)
+const testing = ref(false)
 const timer = ref<any>(null)
 
 const settings = reactive({
@@ -107,7 +143,19 @@ const settings = reactive({
     engine: 'paddleocr',
     language: ['ch', 'en'],
     threads: 4,
-    use_gpu: true
+    use_gpu: true,
+    baidu_config: {
+      app_id: '',
+      api_key: '',
+      secret_key: ''
+    },
+    paddle_config: {
+      token: '',
+      model: 'PaddleOCR-VL-1.5',
+      use_doc_orientation_classify: false,
+      use_doc_unwarping: false,
+      use_chart_recognition: false
+    }
   },
   storage: {
     type: 'local',
@@ -166,6 +214,18 @@ const handleSave = async () => {
   }
 }
 
+const handleTestConnection = async () => {
+  testing.value = true
+  try {
+    await testOcrConnection(settings.ocr)
+    ElMessage.success('连接测试成功，配置有效')
+  } catch (error) {
+    // 错误在 request.ts 中自动被拦截弹窗
+  } finally {
+    testing.value = false
+  }
+}
+
 onMounted(() => {
   loadData()
   timer.value = setInterval(refreshStatus, 3000)
@@ -192,6 +252,13 @@ onUnmounted(() => {
     
     .uptime-info {
       margin-top: 10px;
+    }
+  }
+
+  .advanced-options {
+    .options-wrapper {
+      display: flex;
+      flex-direction: column;
     }
   }
 }

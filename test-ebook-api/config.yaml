@@ -1,0 +1,29 @@
+server:
+  port: 8182
+  mode: debug
+
+database:
+  path: data/test_ebook.db
+  busy_timeout: 5000
+  max_read_conns: 4
+
+jwt:
+  secret: "ebook-secret-key-2026"
+  expire_hours: 24
+
+upload:
+  dir: uploads
+  max_size_mb: 50
+
+ocr:
+  baidu_api_key: ""
+  baidu_secret_key: ""
+  paddle_token: "02ac470b6efd58e73df5818608dfc0a59b30e6a8"
+  paddle_model: "PaddleOCR-VL-1.5"
+  paddle_job_url: "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs"
+  timeout_seconds: 60
+  task_timeout_minutes: 10
+
+log:
+  level: debug
+  output: stdout

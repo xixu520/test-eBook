@@ -54,6 +54,24 @@ const router = createRouter({
           meta: { title: '用户管理', requiresAdmin: true }
         },
         {
+          path: 'documents',
+          name: 'AdminDocuments',
+          component: () => import('@/views/admin/document/AdminDocumentsPage.vue'),
+          meta: { title: '文档管理' }
+        },
+        {
+          path: 'recycle',
+          name: 'AdminRecycle',
+          component: () => import('@/views/admin/recycle/RecycleBinPage.vue'),
+          meta: { title: '回收站' }
+        },
+        {
+          path: 'audit',
+          name: 'AdminAudit',
+          component: () => import('@/views/admin/audit/AuditLogPage.vue'),
+          meta: { title: '审计日志' }
+        },
+        {
           path: 'settings',
           name: 'AdminSettings',
           component: () => import('@/views/admin/settings/SettingsPage.vue'),
