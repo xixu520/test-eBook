@@ -45,6 +45,18 @@ func main() {
 	paddleOCR := ocr.NewPaddleClient()
 	standardService := service.NewStandardService(standardRepo, paddleOCR)
 	standardHandler := handler.NewStandardHandler(standardService)
+
+	userService := service.NewUserService(userRepo)
+	userHandler := handler.NewUserHandler(userService)
+
+	settingRepo := repository.NewSettingRepository(database.WriteDB)
+	settingService := service.NewSettingService(settingRepo)
+	settingHandler := handler.NewSettingHandler(settingService)
+
+	auditRepo := repository.NewAuditRepository(database.WriteDB)
+	auditService := service.NewAuditService(auditRepo)
+	auditHandler := handler.NewAuditHandler(auditService)
+
 	mockHandler := handler.NewMockHandler()
 
 	// 5. Seed Initial Data
@@ -54,7 +66,15 @@ func main() {
 
 	// 6. Setup Router
 	gin.SetMode(config.GlobalConfig.Server.Mode)
-	r := router.InitRouter(authHandler, standardHandler, mockHandler)
+	r := router.InitRouter(
+		authHandler,
+		standardHandler,
+		mockHandler,
+		userHandler,
+		settingHandler,
+		auditHandler,
+		database.WriteDB,
+	)
 
 	addr := fmt.Sprintf(":%d", config.GlobalConfig.Server.Port)
 	srv := &http.Server{

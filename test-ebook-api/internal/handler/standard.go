@@ -46,6 +46,119 @@ func (h *StandardHandler) AddCategory(c *gin.Context) {
 	pkg.Success(c, nil)
 }
 
+func (h *StandardHandler) UpdateCategory(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	var input struct {
+		Name     string `json:"name" binding:"required"`
+		ParentID uint   `json:"parent_id"`
+		Order    int    `json:"order"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
+		return
+	}
+
+	if err := h.svc.UpdateCategory(uint(id), input.Name, input.ParentID, input.Order); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
+func (h *StandardHandler) DeleteCategory(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	if err := h.svc.DeleteCategory(uint(id)); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
+// --- History & Recycle Bin ---
+
+func (h *StandardHandler) GetFileHistory(c *gin.Context) {
+	number := c.Query("standard_no")
+	history, err := h.svc.GetFileHistory(number)
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, history)
+}
+
+func (h *StandardHandler) GetRecycleBin(c *gin.Context) {
+	files, err := h.svc.GetRecycleBin()
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, gin.H{
+		"list": files,
+	})
+}
+
+func (h *StandardHandler) RestoreDocuments(c *gin.Context) {
+	var input struct {
+		IDs []uint `json:"document_ids"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
+		return
+	}
+	if err := h.svc.RestoreDocuments(input.IDs); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
+func (h *StandardHandler) BatchDeleteDocuments(c *gin.Context) {
+	var input struct {
+		IDs      []uint `json:"document_ids"`
+		EmptyAll bool   `json:"empty_all"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
+		return
+	}
+	if err := h.svc.HardDeleteDocuments(input.IDs, input.EmptyAll); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
+func (h *StandardHandler) GetTaskStatus(c *gin.Context) {
+	taskID := c.Param("task_id")
+	task, err := h.svc.GetTaskStatus(taskID)
+	if err != nil {
+		pkg.Error(c, http.StatusNotFound, 404, "任务不存在")
+		return
+	}
+	pkg.Success(c, task)
+}
+
+func (h *StandardHandler) GetOCRTasks(c *gin.Context) {
+	tasks, err := h.svc.GetOCRTasks()
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, tasks)
+}
+
+func (h *StandardHandler) RetryOCR(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	taskID, err := h.svc.RetryOCR(uint(id))
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, gin.H{
+		"task_id": taskID,
+	})
+}
+
 // --- File Handlers ---
 
 func (h *StandardHandler) UploadFile(c *gin.Context) {
@@ -74,13 +187,16 @@ func (h *StandardHandler) UploadFile(c *gin.Context) {
 	}
 	defer f.Close()
 
-	standardFile, err := h.svc.UploadFile(title, number, year, version, uint(catID), f, file.Filename, file.Size)
+	fileModel, taskID, err := h.svc.UploadFile(title, number, year, version, uint(catID), f, file.Filename, file.Size)
 	if err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
 	}
 
-	pkg.Success(c, standardFile)
+	pkg.Success(c, gin.H{
+		"document": fileModel,
+		"task_id":  taskID,
+	})
 }
 
 func (h *StandardHandler) ListFiles(c *gin.Context) {

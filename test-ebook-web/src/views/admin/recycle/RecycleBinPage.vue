@@ -20,10 +20,13 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column prop="standard_no" label="标准号" width="180" />
-        <el-table-column prop="name" label="名称" min-width="250" show-overflow-tooltip />
-        <el-table-column prop="uploader_name" label="上传者" width="120" align="center" />
-        <el-table-column prop="upload_time" label="上传时间" width="180" align="center" />
+        <el-table-column prop="number" label="标准号" width="180" />
+        <el-table-column prop="title" label="名称" min-width="250" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="上传时间" width="180" align="center">
+          <template #default="{ row }">
+            {{ new Date(row.created_at).toLocaleString() }}
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="180" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" :icon="RefreshLeft" @click="handleRestore(row)">还原</el-button>

@@ -50,6 +50,7 @@
           <el-button link type="primary" :icon="View" :disabled="row.status !== 1" @click="handlePreview(row)">预览</el-button>
           <el-button link type="primary" :icon="Timer" :disabled="row.status !== 1" @click="handleHistory(row)">历史</el-button>
           <el-button link type="primary" :icon="Edit" :disabled="row.status !== 1" @click="handleEdit(row)">编辑</el-button>
+          <el-button v-if="row.status === 2" link type="warning" :icon="Refresh" @click="handleRetry(row)">重试 OCR</el-button>
           <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -93,8 +94,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Search, Plus, Edit, Delete, Timer, View } from '@element-plus/icons-vue'
-import { getDocuments, uploadFile, deleteDocument, type Document } from '@/api/document'
+import { Search, Plus, Edit, Delete, Timer, View, Refresh } from '@element-plus/icons-vue'
+import { getDocuments, uploadFile, deleteDocument, type Document, getTaskStatus, retryOCR } from '@/api/document'
 import { getCategories } from '@/api/category'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -167,9 +168,12 @@ const handleUpload = () => {
 
     loading.value = true
     try {
-      await uploadFile(formData)
-      ElMessage.success('上传成功，OCR 正在排队处理...')
+      const res: any = await uploadFile(formData)
+      ElMessage.success('上传成功，正在识别中...')
       loadData()
+      if (res.task_id) {
+        pollTaskStatus(res.task_id)
+      }
     } catch (err) {
       console.error(err)
     } finally {
@@ -177,6 +181,36 @@ const handleUpload = () => {
     }
   }
   input.click()
+}
+
+const pollTaskStatus = (taskId: string) => {
+  const timer = setInterval(async () => {
+    try {
+      const res: any = await getTaskStatus(taskId)
+      if (res.status === 'completed') {
+        clearInterval(timer)
+        ElMessage.success('文档识别完成')
+        loadData()
+      } else if (res.status === 'failed') {
+        clearInterval(timer)
+        ElMessage.error(`识别失败: ${res.error || '未知错误'}`)
+        loadData()
+      }
+    } catch (error) {
+      clearInterval(timer)
+    }
+  }, 5000)
+}
+
+const handleRetry = async (row: any) => {
+  try {
+    const res: any = await retryOCR(row.id)
+    ElMessage.success('已重新提交识别任务')
+    loadData()
+    if (res.task_id) {
+      pollTaskStatus(res.task_id)
+    }
+  } catch (error) {}
 }
 
 const handleEdit = (row: any) => {

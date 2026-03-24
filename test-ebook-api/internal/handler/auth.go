@@ -40,5 +40,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
-	pkg.Success(c, gin.H{"message": "AuthMe endpoint placeholder"})
+	userID, exists := c.Get("userID")
+	if !exists {
+		pkg.Error(c, http.StatusUnauthorized, 401, "未授权")
+		return
+	}
+
+	user, err := h.authService.GetUserInfo(userID.(uint))
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+
+	pkg.Success(c, user)
 }

@@ -48,13 +48,58 @@ func (s *StandardService) AddCategory(name string, parentID uint, order int) err
 	return s.repo.CreateCategory(cat)
 }
 
+func (s *StandardService) UpdateCategory(id uint, name string, parentID uint, order int) error {
+	cat, err := s.repo.FindCategoryByID(id)
+	if err != nil {
+		return errors.New("分类不存在")
+	}
+
+	if parentID > 0 {
+		if parentID == id {
+			return errors.New("父分类不能是自己")
+		}
+		_, err := s.repo.FindCategoryByID(parentID)
+		if err != nil {
+			return errors.New("父分类不存在")
+		}
+	}
+
+	cat.Name = name
+	cat.ParentID = parentID
+	cat.Order = order
+
+	return s.repo.UpdateCategory(cat)
+}
+
+func (s *StandardService) DeleteCategory(id uint) error {
+	// 1. Check sub-categories
+	subCount, err := s.repo.CountSubCategories(id)
+	if err != nil {
+		return err
+	}
+	if subCount > 0 {
+		return errors.New("存在子分类，无法删除")
+	}
+
+	// 2. Check associated files
+	fileCount, err := s.repo.CountFilesByCategory(id)
+	if err != nil {
+		return err
+	}
+	if fileCount > 0 {
+		return errors.New("该分类下有关联文件，无法删除")
+	}
+
+	return s.repo.DeleteCategory(id)
+}
+
 // --- File Logic ---
 
-func (s *StandardService) UploadFile(title, number, year, version string, categoryID uint, fileReader io.Reader, fileName string, fileSize int64) (*model.StandardFile, error) {
+func (s *StandardService) UploadFile(title, number, year, version string, categoryID uint, fileReader io.Reader, fileName string, fileSize int64) (*model.StandardFile, string, error) {
 	// 1. Verify Category
 	_, err := s.repo.FindCategoryByID(categoryID)
 	if err != nil {
-		return nil, errors.New("分类不存在")
+		return nil, "", errors.New("分类不存在")
 	}
 
 	// 2. Prepare Storage
@@ -69,13 +114,13 @@ func (s *StandardService) UploadFile(title, number, year, version string, catego
 
 	out, err := os.Create(savePath)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer out.Close()
 
 	_, err = io.Copy(out, fileReader)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// 3. Save to DB
@@ -91,33 +136,58 @@ func (s *StandardService) UploadFile(title, number, year, version string, catego
 	}
 
 	if err := s.repo.CreateFile(standardFile); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	// 4. Async processing (OCR Real)
-	go s.ProcessFile(standardFile.ID)
+	// 4. Create OCR Task
+	taskID := uuid.New().String()
+	task := &model.OCRTask{
+		TaskID:     taskID,
+		DocumentID: standardFile.ID,
+		Status:     "pending",
+	}
+	if err := s.repo.CreateTask(task); err != nil {
+		return nil, "", err
+	}
 
-	return standardFile, nil
+	// 5. Async processing (OCR Real)
+	go s.ProcessFile(standardFile.ID, taskID)
+
+	return standardFile, taskID, nil
 }
 
-func (s *StandardService) ProcessFile(fileID uint) {
+func (s *StandardService) ProcessFile(fileID uint, taskID string) {
 	file, err := s.repo.FindFileByID(fileID)
 	if err != nil {
 		return
 	}
 
-	log.Printf("[OCR] Starting process for file %d: %s", fileID, file.FilePath)
+	task, err := s.repo.GetTaskByID(taskID)
+	if err != nil {
+		return
+	}
+
+	task.Status = "processing"
+	task.Progress = 10
+	s.repo.UpdateTask(task)
+
+	log.Printf("[OCR] Starting process for file %d, task %s: %s", fileID, taskID, file.FilePath)
 
 	// 1. Submit to OCR
 	jobID, err := s.ocrClient.SubmitTask(file.FilePath)
 	if err != nil {
-		log.Printf("[OCR] Submission failed for file %d: %v", fileID, err)
+		log.Printf("[OCR] Submission failed for file %d, task %s: %v", fileID, taskID, err)
 		file.Status = 2 // Failed
-		file.OCRContent = "OCR提交失败: " + err.Error()
 		s.repo.UpdateFile(file)
+
+		task.Status = "failed"
+		task.Error = "OCR提交失败: " + err.Error()
+		s.repo.UpdateTask(task)
 		return
 	}
-	log.Printf("[OCR] Task submitted, JobID: %s", jobID)
+	log.Printf("[OCR] Task submitted to provider, JobID: %s", jobID)
+	task.Progress = 30
+	s.repo.UpdateTask(task)
 
 	// 2. Poll for result
 	maxRetries := config.GlobalConfig.OCR.TaskTimeoutMinutes * 6 // 10s interval
@@ -125,37 +195,54 @@ func (s *StandardService) ProcessFile(fileID uint) {
 		time.Sleep(10 * time.Second)
 
 		content, status, err := s.ocrClient.GetResult(jobID)
-		log.Printf("[OCR] Polling JobID %s, attempt %d, status: %s, err: %v", jobID, i+1, status, err)
+		log.Printf("[OCR] Polling JobID %s for task %s, attempt %d, status: %s", jobID, taskID, i+1, status)
+		
+		task.Progress = 30 + (i+1)*2
+		if task.Progress > 95 { task.Progress = 95 }
+		s.repo.UpdateTask(task)
+
 		if err != nil {
 			file.Status = 2
-			file.OCRContent = "OCR轮询失败: " + err.Error()
 			s.repo.UpdateFile(file)
+
+			task.Status = "failed"
+			task.Error = "OCR轮询失败: " + err.Error()
+			s.repo.UpdateTask(task)
 			return
 		}
 
 		if status == "success" {
-			log.Printf("[OCR] Successfully processed JobID %s", jobID)
+			log.Printf("[OCR] Successfully processed JobID %s for task %s", jobID, taskID)
 			file.Status = 1
 			file.OCRContent = content
 			s.repo.UpdateFile(file)
+
+			task.Status = "completed"
+			task.Progress = 100
+			task.Result = content // In real case, we might parse specific fields
+			s.repo.UpdateTask(task)
 			return
 		}
 
 		if status == "failed" {
-			log.Printf("[OCR] Processing failed for JobID %s", jobID)
+			log.Printf("[OCR] Processing failed for JobID %s for task %s", jobID, taskID)
 			file.Status = 2
-			file.OCRContent = "OCR处理失败"
 			s.repo.UpdateFile(file)
+
+			task.Status = "failed"
+			task.Error = "OCR处理失败"
+			s.repo.UpdateTask(task)
 			return
 		}
-		// status == "processing", continue
 	}
 
-	log.Printf("[OCR] Timeout reached for JobID %s", jobID)
-	// Timeout
+	log.Printf("[OCR] Timeout reached for JobID %s for task %s", jobID, taskID)
 	file.Status = 2
-	file.OCRContent = "OCR处理超时"
 	s.repo.UpdateFile(file)
+
+	task.Status = "failed"
+	task.Error = "OCR处理超时"
+	s.repo.UpdateTask(task)
 }
 
 func (s *StandardService) SearchFiles(categoryID uint, year string, page, pageSize int) ([]model.StandardFile, int64, error) {
@@ -169,11 +256,91 @@ func (s *StandardService) GetFileDetail(id uint) (*model.StandardFile, error) {
 }
 
 func (s *StandardService) DeleteFile(id uint) error {
-	file, err := s.repo.FindFileByID(id)
-	if err != nil {
-		return err
-	}
-	// Delete physical file
-	os.Remove(file.FilePath)
 	return s.repo.DeleteFile(id)
+}
+
+func (s *StandardService) GetTaskStatus(taskID string) (*model.OCRTask, error) {
+	return s.repo.GetTaskByID(taskID)
+}
+
+func (s *StandardService) GetOCRTasks() ([]model.OCRTask, error) {
+	return s.repo.GetTasks(100)
+}
+
+func (s *StandardService) RetryOCR(docID uint) (string, error) {
+	file, err := s.repo.FindFileByID(docID)
+	if err != nil {
+		return "", errors.New("文件不存在")
+	}
+
+	// Create a new task
+	taskID := uuid.New().String()
+	task := &model.OCRTask{
+		TaskID:     taskID,
+		DocumentID: docID,
+		Status:     "pending",
+	}
+	if err := s.repo.CreateTask(task); err != nil {
+		return "", err
+	}
+
+	// Update file status to pending
+	file.Status = 0
+	s.repo.UpdateFile(file)
+
+	// Restart process
+	go s.ProcessFile(docID, taskID)
+
+	return taskID, nil
+}
+
+func (s *StandardService) GetFileHistory(number string) ([]model.StandardFile, error) {
+	if number == "" {
+		return nil, errors.New("标准编号不能为空")
+	}
+	return s.repo.GetFileHistory(number)
+}
+
+func (s *StandardService) GetRecycleBin() ([]model.StandardFile, error) {
+	return s.repo.GetRecycleBinFiles()
+}
+
+func (s *StandardService) RestoreDocuments(ids []uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return s.repo.RestoreFiles(ids)
+}
+
+func (s *StandardService) HardDeleteDocuments(ids []uint, emptyAll bool) error {
+	var toDeleteIDs []uint
+	if emptyAll {
+		files, err := s.repo.GetRecycleBinFiles()
+		if err != nil {
+			return err
+		}
+		for _, f := range files {
+			toDeleteIDs = append(toDeleteIDs, f.ID)
+		}
+	} else {
+		toDeleteIDs = ids
+	}
+
+	if len(toDeleteIDs) == 0 {
+		return nil
+	}
+
+	// 1. Delete physical files
+	// Fetch files including deleted ones to get their paths
+	var files []model.StandardFile
+	if err := s.repo.UnscopedFindFiles(toDeleteIDs, &files); err == nil {
+		for _, f := range files {
+			if f.FilePath != "" {
+				os.Remove(f.FilePath)
+			}
+		}
+	}
+
+
+	return s.repo.HardDeleteFiles(toDeleteIDs)
 }

@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set NPM registry for speed in China
 RUN npm config set registry https://registry.npmmirror.com

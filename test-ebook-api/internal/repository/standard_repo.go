@@ -14,10 +14,34 @@ func NewStandardRepository(db *gorm.DB) *StandardRepository {
 	return &StandardRepository{db: db}
 }
 
+func (r *StandardRepository) GetDB() *gorm.DB {
+	return r.db
+}
+
 // --- Category Operations ---
 
 func (r *StandardRepository) CreateCategory(cat *model.Category) error {
 	return r.db.Create(cat).Error
+}
+
+func (r *StandardRepository) UpdateCategory(cat *model.Category) error {
+	return r.db.Save(cat).Error
+}
+
+func (r *StandardRepository) DeleteCategory(id uint) error {
+	return r.db.Delete(&model.Category{}, id).Error
+}
+
+func (r *StandardRepository) CountSubCategories(parentID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Category{}).Where("parent_id = ?", parentID).Count(&count).Error
+	return count, err
+}
+
+func (r *StandardRepository) CountFilesByCategory(categoryID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.StandardFile{}).Where("category_id = ?", categoryID).Count(&count).Error
+	return count, err
 }
 
 func (r *StandardRepository) GetCategoryTree() ([]model.Category, error) {
@@ -73,4 +97,50 @@ func (r *StandardRepository) UpdateFile(file *model.StandardFile) error {
 
 func (r *StandardRepository) DeleteFile(id uint) error {
 	return r.db.Delete(&model.StandardFile{}, id).Error
+}
+
+func (r *StandardRepository) GetFileHistory(number string) ([]model.StandardFile, error) {
+	var files []model.StandardFile
+	err := r.db.Where("number = ?", number).Order("created_at DESC").Find(&files).Error
+	return files, err
+}
+
+func (r *StandardRepository) GetRecycleBinFiles() ([]model.StandardFile, error) {
+	var files []model.StandardFile
+	err := r.db.Unscoped().Where("deleted_at IS NOT NULL").Order("deleted_at DESC").Find(&files).Error
+	return files, err
+}
+
+func (r *StandardRepository) RestoreFiles(ids []uint) error {
+	return r.db.Unscoped().Model(&model.StandardFile{}).Where("id IN ?", ids).Update("deleted_at", nil).Error
+}
+
+func (r *StandardRepository) HardDeleteFiles(ids []uint) error {
+	return r.db.Unscoped().Delete(&model.StandardFile{}, ids).Error
+}
+
+func (r *StandardRepository) UnscopedFindFiles(ids []uint, files *[]model.StandardFile) error {
+	return r.db.Unscoped().Where("id IN ?", ids).Find(files).Error
+}
+
+// --- OCR Task Operations ---
+
+func (r *StandardRepository) CreateTask(task *model.OCRTask) error {
+	return r.db.Create(task).Error
+}
+
+func (r *StandardRepository) GetTaskByID(taskID string) (*model.OCRTask, error) {
+	var task model.OCRTask
+	err := r.db.Where("task_id = ?", taskID).First(&task).Error
+	return &task, err
+}
+
+func (r *StandardRepository) UpdateTask(task *model.OCRTask) error {
+	return r.db.Save(task).Error
+}
+
+func (r *StandardRepository) GetTasks(limit int) ([]model.OCRTask, error) {
+	var tasks []model.OCRTask
+	err := r.db.Order("created_at DESC").Limit(limit).Find(&tasks).Error
+	return tasks, err
 }

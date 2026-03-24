@@ -24,6 +24,10 @@ func (s *AuthService) Login(username, password string) (string, *model.User, err
 		return "", nil, errors.New("用户名或密码错误")
 	}
 
+	if !user.IsActive {
+		return "", nil, errors.New("账号已禁用，请联系管理员")
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return "", nil, errors.New("用户名或密码错误")
 	}
@@ -35,6 +39,10 @@ func (s *AuthService) Login(username, password string) (string, *model.User, err
 	}
 
 	return token, user, nil
+}
+
+func (s *AuthService) GetUserInfo(userID uint) (*model.User, error) {
+	return s.userRepo.FindByID(userID)
 }
 
 func (s *AuthService) SeedAdmin() error {

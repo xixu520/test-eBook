@@ -9,5 +9,8 @@ func AutoMigrate() error {
 		&model.User{},
 		&model.Category{},
 		&model.StandardFile{},
+		&model.OCRTask{},
+		&model.SystemSetting{},
+		&model.AuditLog{},
 	)
 }

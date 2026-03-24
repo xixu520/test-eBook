@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { getCategories, deleteCategory, addCategory } from '@/api/category'
+import { getCategories, deleteCategory, addCategory, updateCategory } from '@/api/category'
 import { ElMessageBox, ElMessage } from 'element-plus'
 
 const categories = ref<any[]>([])
@@ -143,7 +143,8 @@ const submitForm = async () => {
       await addCategory(form.value as any)
       ElMessage.success('添加成功')
     } else {
-      ElMessage.warning('编辑功能待后端支持')
+      await updateCategory(form.value.id!, form.value as any)
+      ElMessage.success('更新成功')
     }
     dialogVisible.value = false
     loadData()

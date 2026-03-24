@@ -19,10 +19,8 @@
         <el-table-column label="状态">
           <template #default="{ row }">
             <el-switch
-              v-model="row.status"
-              :active-value="1"
-              :inactive-value="0"
-              @change="(val: any) => handleStatusChange(row, val)"
+              v-model="row.is_active"
+              @change="(val: boolean) => handleStatusChange(row, val)"
             />
           </template>
         </el-table-column>
@@ -61,7 +59,7 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { getUserList, updateUserStatus, updateUserRole, deleteUser } from '@/api/user'
+import { getUsers, updateUserStatus, deleteUser, updateUserRole } from '@/api/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
@@ -94,8 +92,8 @@ const roleName = (role: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res: any = await getUserList()
-    userList.value = res
+    const res: any = await getUsers({ page: 1, page_size: 100 })
+    userList.value = res.list || []
   } catch (error) {
     console.error(error)
   } finally {
@@ -103,12 +101,12 @@ const loadData = async () => {
   }
 }
 
-const handleStatusChange = async (row: any, val: number) => {
+const handleStatusChange = async (row: any, val: boolean) => {
   try {
     await updateUserStatus(row.id, val)
-    ElMessage.success(`用户 ${row.username} 已${val === 1 ? '启用' : '禁用'}`)
+    ElMessage.success(`用户 ${row.username} 已${val ? '启用' : '禁用'}`)
   } catch (error) {
-    row.status = val === 1 ? 0 : 1 // 失败回滚
+    row.is_active = !val // 失败回滚
     console.error(error)
   }
 }

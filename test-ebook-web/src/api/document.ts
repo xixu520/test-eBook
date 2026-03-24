@@ -27,7 +27,7 @@ export interface Document {
 
 export function getDocuments(params: DocumentQuery) {
   return request({
-    url: '/standards/files',
+    url: '/documents',
     method: 'get',
     params,
   })
@@ -35,7 +35,7 @@ export function getDocuments(params: DocumentQuery) {
 
 export function uploadFile(formData: FormData) {
   return request({
-    url: '/standards/files',
+    url: '/documents/upload',
     method: 'post',
     data: formData,
     headers: {
@@ -46,15 +46,31 @@ export function uploadFile(formData: FormData) {
 
 export function getDocumentDetail(id: number) {
   return request({
-    url: `/standards/files/${id}`,
+    url: `/documents/${id}`,
     method: 'get'
   })
 }
 
 export function deleteDocument(id: number) {
   return request({
-    url: `/standards/files/${id}`,
+    url: `/documents/${id}`,
     method: 'delete'
+  })
+}
+
+// --- OCR Tasks ---
+
+export function getTaskStatus(taskId: string) {
+  return request({
+    url: `/tasks/${taskId}/status`,
+    method: 'get'
+  })
+}
+
+export function retryOCR(docId: number) {
+  return request({
+    url: `/documents/${docId}/ocr/retry`,
+    method: 'post'
   })
 }
 
