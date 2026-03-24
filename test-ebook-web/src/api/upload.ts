@@ -2,7 +2,7 @@ import request from '@/utils/request'
 
 export function uploadFile(formData: FormData, onProgress?: (event: any) => void) {
   return request({
-    url: '/upload',
+    url: '/documents/upload',
     method: 'post',
     data: formData,
     headers: { 'Content-Type': 'multipart/form-data' },

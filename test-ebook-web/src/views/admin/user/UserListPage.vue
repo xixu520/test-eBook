@@ -27,51 +27,23 @@
         <el-table-column prop="last_login" label="最近登录" />
         <el-table-column label="操作" width="180">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleEditRole(row)">修改角色</el-button>
+            <el-button link type="danger" @click="handleDelete(row)" v-if="row.role !== 'admin'">删除</el-button>
             <el-button link type="danger" @click="handleDelete(row)" v-if="row.role !== 'admin'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
-
-    <!-- 修改角色对话框 -->
-    <el-dialog v-model="roleDialogVisible" title="修改用户角色" width="400px">
-      <el-form :model="roleForm" label-width="80px">
-        <el-form-item label="用户名">
-          <el-input v-model="roleForm.username" disabled />
-        </el-form-item>
-        <el-form-item label="核心角色">
-          <el-select v-model="roleForm.role" style="width: 100%">
-            <el-option label="管理员" value="admin" />
-            <el-option label="标注员 (编辑)" value="editor" />
-            <el-option label="普通用户 (只读)" value="user" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="roleDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitRoleChange" :loading="submitting">确定</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { getUsers, updateUserStatus, deleteUser, updateUserRole } from '@/api/user'
+import { getUsers, updateUserStatus, deleteUser } from '@/api/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
 const userList = ref([])
-const roleDialogVisible = ref(false)
-const submitting = ref(false)
-
-const roleForm = reactive({
-  id: 0,
-  username: '',
-  role: ''
-})
 
 const roleTagType = (role: string) => {
   switch (role) {
@@ -108,27 +80,6 @@ const handleStatusChange = async (row: any, val: boolean) => {
   } catch (error) {
     row.is_active = !val // 失败回滚
     console.error(error)
-  }
-}
-
-const handleEditRole = (row: any) => {
-  roleForm.id = row.id
-  roleForm.username = row.username
-  roleForm.role = row.role
-  roleDialogVisible.value = true
-}
-
-const submitRoleChange = async () => {
-  submitting.value = true
-  try {
-    await updateUserRole(roleForm.id, roleForm.role)
-    ElMessage.success('角色更新成功')
-    roleDialogVisible.value = false
-    loadData()
-  } catch (error) {
-    console.error(error)
-  } finally {
-    submitting.value = false
   }
 }
 

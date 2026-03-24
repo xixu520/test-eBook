@@ -16,14 +16,6 @@ export function updateUserStatus(id: number, isActive: boolean) {
   })
 }
 
-export function updateUserRole(id: number, role: string) {
-  return request({
-    url: `/admin/users/${id}/role`,
-    method: 'put',
-    data: { role },
-  })
-}
-
 // Alias for compatibility
 export const getUserList = () => getUsers({ page: 1, page_size: 100 })
 

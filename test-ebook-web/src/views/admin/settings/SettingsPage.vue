@@ -130,7 +130,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { getSettings, saveSettings, getSystemStatus, testOcrConnection } from '@/api/settings'
+import { getSettings, saveSettings, testOcrConnection } from '@/api/settings'
 import { ElMessage } from 'element-plus'
 
 const activeTab = ref('ocr')
@@ -194,12 +194,8 @@ const loadData = async () => {
 }
 
 const refreshStatus = async () => {
-  try {
-    const res: any = await getSystemStatus()
-    Object.assign(systemStatus, res)
-  } catch (error) {
-    console.error(error)
-  }
+  // const res: any = await getSystemStatus()
+  // Object.assign(systemStatus, res)
 }
 
 const handleSave = async () => {

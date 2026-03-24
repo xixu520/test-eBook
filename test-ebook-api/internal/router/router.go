@@ -22,7 +22,6 @@ func InitRouter(
 	// Global Middlewares
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
-	r.Use(middleware.AuditMiddleware(db)) // Record all state-changing ops
 
 	v1 := r.Group("/api/v1")
 	{
@@ -32,6 +31,7 @@ func InitRouter(
 		// Protected routes
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware())
+		protected.Use(middleware.AuditMiddleware(db)) // Record all state-changing ops
 		{
 			// Auth
 			protected.GET("/auth/me", authHandler.Me)
@@ -76,6 +76,7 @@ func InitRouter(
 
 			// Admin Management
 			admin := protected.Group("/admin")
+			admin.Use(middleware.AdminGuard())
 			{
 				admin.GET("/dashboard", mockHandler.GetDashboardStats)
 				admin.GET("/users", userHandler.GetUsers)

@@ -14,11 +14,3 @@ export function getInfo() {
     method: 'get',
   })
 }
-
-export function updateTheme(theme: string) {
-  return request({
-    url: '/users/me/theme',
-    method: 'put',
-    data: { theme },
-  })
-}

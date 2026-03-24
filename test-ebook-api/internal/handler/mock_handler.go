@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"net/http"
+	"test-ebook-api/internal/pkg"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,22 +13,14 @@ func NewMockHandler() *MockHandler {
 }
 
 func (h *MockHandler) GetDashboardStats(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"data": gin.H{
-			"total_files":    0,
-			"pending_ocr":    0,
-			"categories":     0,
-			"recent_updates": []interface{}{},
-		},
-		"message": "success (mock)",
+	pkg.Success(c, gin.H{
+		"total_files":    0,
+		"pending_ocr":    0,
+		"categories":     0,
+		"recent_updates": []interface{}{},
 	})
 }
 
 func (h *MockHandler) GetActiveAnnouncements(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"data":    []interface{}{},
-		"message": "success (mock)",
-	})
+	pkg.Success(c, []interface{}{})
 }

@@ -35,7 +35,11 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 }
 
 func (h *UserHandler) UpdateStatus(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的用户ID")
+		return
+	}
 	var req struct {
 		IsActive bool `json:"is_active"`
 	}
@@ -51,7 +55,11 @@ func (h *UserHandler) UpdateStatus(c *gin.Context) {
 }
 
 func (h *UserHandler) DeleteUser(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的用户ID")
+		return
+	}
 	if err := h.svc.DeleteUser(uint(id)); err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
@@ -60,8 +68,12 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 }
 
 func (h *UserHandler) UpdateTheme(c *gin.Context) {
-	// TODO: Get real user ID from context
-	userID := uint(1) // Placeholder
+	uid, exists := c.Get("userID")
+	if !exists {
+		pkg.Error(c, http.StatusUnauthorized, 401, "未授权")
+		return
+	}
+	userID := uid.(uint)
 	var req struct {
 		Theme string `json:"theme"`
 	}

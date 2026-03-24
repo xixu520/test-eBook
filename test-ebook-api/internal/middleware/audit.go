@@ -32,11 +32,18 @@ func AuditMiddleware(db *gorm.DB) gin.HandlerFunc {
 
 		// 只有成功的操作才记录（可选，也可以记录失败的）
 		if c.Writer.Status() >= 200 && c.Writer.Status() < 300 {
-			//TODO: 从上下文获取真实 UserID (目前简单处理)
-			username := "admin" // 占位符，待 AuthMiddleware 完善
+			username, _ := c.Get("username")
+			usernameStr, ok := username.(string)
+			if !ok {
+				usernameStr = "anonymous"
+			}
+
+			userIDVal, _ := c.Get("userID")
+			userID, _ := userIDVal.(uint)
 			
 			audit := &model.AuditLog{
-				Username: username,
+				UserID:   userID,
+				Username: usernameStr,
 				Action:   method + " " + c.Request.URL.Path,
 				Details:  string(bodyBytes),
 				IP:       c.ClientIP(),

@@ -41,13 +41,6 @@ export function saveSettings(data: any) {
   })
 }
 
-export function getSystemStatus() {
-  return request({
-    url: '/system/status',
-    method: 'get',
-  })
-}
-
 export function testOcrConnection(data: any) {
   return request({
     url: '/settings/ocr-test',

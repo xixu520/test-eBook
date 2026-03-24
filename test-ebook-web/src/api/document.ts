@@ -2,7 +2,7 @@ import request from '@/utils/request'
 
 export interface DocumentQuery {
   page?: number
-  size?: number
+  page_size?: number
   keyword?: string
   category_id?: number
   publisher?: string

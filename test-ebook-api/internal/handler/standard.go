@@ -47,7 +47,11 @@ func (h *StandardHandler) AddCategory(c *gin.Context) {
 }
 
 func (h *StandardHandler) UpdateCategory(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的分类ID")
+		return
+	}
 	var input struct {
 		Name     string `json:"name" binding:"required"`
 		ParentID uint   `json:"parent_id"`
@@ -66,7 +70,11 @@ func (h *StandardHandler) UpdateCategory(c *gin.Context) {
 }
 
 func (h *StandardHandler) DeleteCategory(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的分类ID")
+		return
+	}
 	if err := h.svc.DeleteCategory(uint(id)); err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
@@ -148,7 +156,11 @@ func (h *StandardHandler) GetOCRTasks(c *gin.Context) {
 }
 
 func (h *StandardHandler) RetryOCR(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
+		return
+	}
 	taskID, err := h.svc.RetryOCR(uint(id))
 	if err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
@@ -219,7 +231,11 @@ func (h *StandardHandler) ListFiles(c *gin.Context) {
 }
 
 func (h *StandardHandler) GetFileDetail(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
+		return
+	}
 	file, err := h.svc.GetFileDetail(uint(id))
 	if err != nil {
 		pkg.Error(c, http.StatusNotFound, 404, "文件不存在")
@@ -229,7 +245,11 @@ func (h *StandardHandler) GetFileDetail(c *gin.Context) {
 }
 
 func (h *StandardHandler) DeleteFile(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
+		return
+	}
 	if err := h.svc.DeleteFile(uint(id)); err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return

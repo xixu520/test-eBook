@@ -46,7 +46,11 @@ func (r *StandardRepository) CountFilesByCategory(categoryID uint) (int64, error
 
 func (r *StandardRepository) GetCategoryTree() ([]model.Category, error) {
 	var results []model.Category
-	err := r.db.Preload("Children").Where("parent_id = 0").Order("\"order\" ASC").Find(&results).Error
+	err := r.db.Preload("Children", func(db *gorm.DB) *gorm.DB {
+		return db.Order("\"order\" ASC")
+	}).Preload("Children.Children", func(db *gorm.DB) *gorm.DB {
+		return db.Order("\"order\" ASC")
+	}).Where("parent_id = 0").Order("\"order\" ASC").Find(&results).Error
 	return results, err
 }
 
