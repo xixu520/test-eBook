@@ -40,7 +40,14 @@ service.interceptors.response.use(
     return res.data
   },
   (error) => {
-    ElMessage.error(error.message || 'Network Error')
+    if (error.response && error.response.status === 401) {
+      ElMessage.error('登录状态已失效，请重新登录')
+      localStorage.removeItem('token')
+      sessionStorage.removeItem('token')
+      window.location.href = '/login'
+    } else {
+      ElMessage.error(error.message || 'Network Error')
+    }
     return Promise.reject(error)
   }
 )
