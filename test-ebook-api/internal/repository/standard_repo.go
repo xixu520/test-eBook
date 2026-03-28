@@ -2,6 +2,7 @@ package repository
 
 import (
 	"test-ebook-api/internal/model"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -51,7 +52,34 @@ func (r *StandardRepository) GetCategoryTree() ([]model.Category, error) {
 	}).Preload("Children.Children", func(db *gorm.DB) *gorm.DB {
 		return db.Order("\"order\" ASC")
 	}).Where("parent_id = 0").Order("\"order\" ASC").Find(&results).Error
-	return results, err
+
+	if err != nil {
+		return nil, err
+	}
+
+	var counts []struct {
+		CategoryID uint
+		Count      int
+	}
+	r.db.Model(&model.StandardFile{}).Select("category_id, count(id) as count").Group("category_id").Find(&counts)
+
+	countMap := make(map[uint]int)
+	for _, c := range counts {
+		countMap[c.CategoryID] = c.Count
+	}
+
+	var assignCounts func(cats []model.Category)
+	assignCounts = func(cats []model.Category) {
+		for i := range cats {
+			cats[i].DocCount = countMap[cats[i].ID]
+			if len(cats[i].Children) > 0 {
+				assignCounts(cats[i].Children)
+			}
+		}
+	}
+	assignCounts(results)
+
+	return results, nil
 }
 
 func (r *StandardRepository) FindCategoryByID(id uint) (*model.Category, error) {
@@ -125,6 +153,45 @@ func (r *StandardRepository) HardDeleteFiles(ids []uint) error {
 
 func (r *StandardRepository) UnscopedFindFiles(ids []uint, files *[]model.StandardFile) error {
 	return r.db.Unscoped().Where("id IN ?", ids).Find(files).Error
+}
+
+// --- Dashboard Statistics ---
+
+func (r *StandardRepository) TotalFilesCount() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.StandardFile{}).Count(&count).Error
+	return count, err
+}
+
+func (r *StandardRepository) TotalCategoriesCount() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Category{}).Count(&count).Error
+	return count, err
+}
+
+func (r *StandardRepository) TodayUploadedCount() (int64, error) {
+	var count int64
+	today := time.Now().Format("2006-01-02")
+	err := r.db.Model(&model.StandardFile{}).Where("created_at >= ?", today).Count(&count).Error
+	return count, err
+}
+
+func (r *StandardRepository) PendingOCRCount() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.StandardFile{}).Where("status = ?", 0).Count(&count).Error
+	return count, err
+}
+
+func (r *StandardRepository) TotalStorageUsed() (int64, error) {
+	var total int64
+	err := r.db.Model(&model.StandardFile{}).Select("COALESCE(SUM(file_size), 0)").Scan(&total).Error
+	return total, err
+}
+
+func (r *StandardRepository) GetRecentFiles(limit int) ([]model.StandardFile, error) {
+	var files []model.StandardFile
+	err := r.db.Order("updated_at DESC").Limit(limit).Find(&files).Error
+	return files, err
 }
 
 // --- OCR Task Operations ---

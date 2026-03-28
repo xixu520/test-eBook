@@ -6,7 +6,7 @@
         <h2 v-else>电子书管理系统</h2>
       </div>
       
-      <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" label-position="top">
+      <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" label-position="top" @submit.prevent="handleLogin">
         <el-form-item label="用户名" prop="username">
           <el-input 
             v-model="loginForm.username" 
@@ -34,7 +34,7 @@
           type="primary" 
           class="login-button" 
           :loading="loading" 
-          @click="handleLogin"
+          native-type="submit"
         >
           登录
         </el-button>

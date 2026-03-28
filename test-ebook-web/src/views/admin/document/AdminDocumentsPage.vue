@@ -3,65 +3,126 @@
     <el-card class="table-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>文档列表库</span>
+          <div class="header-left">
+            <el-icon class="header-icon"><Grid /></el-icon>
+            <span>文档管理</span>
+            <el-tag type="info" size="small" round class="count-badge">
+              共 {{ pagination.total }} 份文档
+            </el-tag>
+          </div>
+          
           <div class="header-actions">
             <el-input
               v-model="searchKeyword"
               placeholder="搜索标准号或名称"
               :prefix-icon="Search"
               clearable
-              style="width: 250px; margin-right: 16px"
-              @keyup.enter="loadData"
+              class="search-input"
+              @keyup.enter="handleSearch"
+              @clear="handleSearch"
             />
-            <el-button type="primary" :icon="Plus" @click="handleUpload">上传文档</el-button>
+            <el-button type="primary" :icon="Plus" @click="handleUpload">
+              上传文档
+            </el-button>
           </div>
         </div>
       </template>
 
+      <!-- 文档列表表格 -->
       <el-table
         v-loading="loading"
         :data="documentList"
-        border
-        stripe
         style="width: 100%"
+        class="document-table"
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column prop="number" label="标准号" width="180" sortable />
-        <el-table-column prop="title" label="名称" min-width="250" show-overflow-tooltip />
-        <el-table-column prop="category_id" label="分类ID" width="100" />
-        <el-table-column prop="file_size" label="大小" width="100" align="center">
+        
+        <el-table-column prop="number" label="标准号" width="200" sortable>
           <template #default="{ row }">
-            {{ (row.file_size / 1024 / 1024).toFixed(2) }} MB
+            <span class="number-text">{{ row.number }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="上传时间" width="180" sortable align="center">
+        
+        <el-table-column prop="title" label="文档名称" min-width="280" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ new Date(row.created_at).toLocaleString() }}
+            <div class="title-cell">
+              <el-icon class="doc-icon"><Document /></el-icon>
+              <span>{{ row.title }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="120" align="center">
+        
+        <el-table-column label="所属分类" width="160" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
+            <el-tag size="small" type="info" effect="plain" round>
+              {{ getCategoryName(row.category_id) }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" :icon="View" :disabled="row.status !== 1" @click="handlePreview(row)">预览</el-button>
-          <el-button link type="primary" :icon="Timer" :disabled="row.status !== 1" @click="handleHistory(row)">历史</el-button>
-          <el-button link type="primary" :icon="Edit" :disabled="row.status !== 1" @click="handleEdit(row)">编辑</el-button>
-          <el-button v-if="row.status === 2" link type="warning" :icon="Refresh" @click="handleRetry(row)">重试 OCR</el-button>
-          <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
+        
+        <el-table-column prop="file_size" label="文件大小" width="120" align="center">
+          <template #default="{ row }">
+            {{ formatFileSize(row.file_size) }}
+          </template>
+        </el-table-column>
+        
+        <el-table-column prop="created_at" label="上传时间" width="180" align="center" sortable>
+          <template #default="{ row }">
+            <span class="time-text">{{ formatDate(row.created_at) }}</span>
+          </template>
+        </el-table-column>
+        
+        <el-table-column prop="status" label="处理状态" width="120" align="center">
+          <template #default="{ row }">
+            <el-tag 
+              :type="getStatusType(row.status)" 
+              size="small" 
+              effect="light"
+              round
+            >
+              {{ getStatusText(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="操作" width="240" align="center" fixed="right">
+          <template #default="{ row }">
+            <div class="action-buttons">
+              <el-button link type="primary" size="small" :icon="View" :disabled="row.status !== 1" @click="handlePreview(row)">
+                预览
+              </el-button>
+              <el-button link type="primary" size="small" :icon="Timer" :disabled="row.status !== 1" @click="handleHistory(row)">
+                历史
+              </el-button>
+              
+              <el-button v-if="row.status === 2" link type="warning" size="small" :icon="Refresh" @click="handleRetry(row)">
+                重试 OCR
+              </el-button>
+              
+              <el-button link type="danger" size="small" :icon="Delete" @click="handleDelete(row)">
+                删除
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+
+        <!-- 空状态 -->
+        <template #empty>
+          <el-empty description="暂无文档数据" :image-size="120">
+            <el-button type="primary" :icon="Plus" @click="handleUpload">上传第一份文档</el-button>
+          </el-empty>
         </template>
-      </el-table-column>
       </el-table>
 
+      <!-- 分页区域 -->
       <div class="pagination-container">
         <el-pagination
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.size"
           :total="pagination.total"
           :page-sizes="[10, 20, 50, 100]"
+          background
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="loadData"
           @current-change="loadData"
@@ -69,41 +130,25 @@
       </div>
     </el-card>
 
-    <!-- 编辑弹窗 -->
-    <el-dialog v-model="editVisible" title="编辑文档信息" width="500px">
-      <el-form :model="editForm" label-width="80px">
-        <el-form-item label="标准号">
-          <el-input v-model="editForm.standard_no" />
-        </el-form-item>
-        <el-form-item label="名称">
-          <el-input v-model="editForm.name" type="textarea" :rows="2" />
-        </el-form-item>
-        <el-form-item label="分类">
-          <el-select v-model="editForm.category_id" style="width: 100%">
-            <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitEdit">确定</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Search, Plus, Edit, Delete, Timer, View, Refresh } from '@element-plus/icons-vue'
-import { getDocuments, uploadFile, deleteDocument, type Document, getTaskStatus, retryOCR } from '@/api/document'
+import { Search, Plus, Delete, Timer, View, Refresh, Grid, Document } from '@element-plus/icons-vue'
+import { getDocuments, uploadFile, deleteDocument, type Document as IDocument, getTaskStatus, retryOCR } from '@/api/document'
 import { getCategories } from '@/api/category'
+import type { Category } from '@/api/category'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
-const documentList = ref<Document[]>([])
+const documentList = ref<IDocument[]>([])
 const searchKeyword = ref('')
 const selectedIds = ref<number[]>([])
-const categories = ref<any[]>([])
+const categories = ref<Category[]>([])
+
+// 扁平化分类字典（提高查找速度）
+const categoryMap = ref<Record<number, string>>({})
 
 const pagination = reactive({
   page: 1,
@@ -111,44 +156,104 @@ const pagination = reactive({
   total: 0
 })
 
-const editVisible = ref(false)
-const editForm = reactive({
-  id: 0,
-  standard_no: '',
-  name: '',
-  category_id: 0
-})
-
-onMounted(() => {
-  loadCategories()
+onMounted(async () => {
+  await loadCategories()
   loadData()
 })
 
+// --- 数据处理 ---
+
 const loadCategories = async () => {
   try {
-    const res: any = await getCategories()
-    categories.value = res
-  } catch (error) {}
+    const res = await getCategories()
+    categories.value = res as Category[]
+    
+    // 递归拍平树结构，构建字典
+    const flattenCategories = (nodes: Category[]) => {
+      nodes.forEach(node => {
+        categoryMap.value[node.ID] = node.name
+        if (node.children && node.children.length > 0) {
+          flattenCategories(node.children)
+        }
+      })
+    }
+    flattenCategories(categories.value)
+  } catch (error) {
+    console.error('获取分类失败', error)
+  }
 }
+
+const getCategoryName = (categoryId: number): string => {
+  if (categoryId === 0) return '未分类'
+  return categoryMap.value[categoryId] || `末知分类 (${categoryId})`
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const formatDate = (dateString: string): string => {
+  if (!dateString) return '-'
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleString('zh-CN', { 
+      year: 'numeric', month: '2-digit', day: '2-digit', 
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    })
+  } catch {
+    return dateString
+  }
+}
+
+const getStatusType = (status: number) => {
+  // 0: processing, 1: success, 2: failed
+  switch (status) {
+    case 0: return 'warning'
+    case 1: return 'success'
+    case 2: return 'danger'
+    default: return 'info'
+  }
+}
+
+const getStatusText = (status: number) => {
+  switch (status) {
+    case 0: return '处理中'
+    case 1: return '已完成'
+    case 2: return '失败'
+    default: return '未知'
+  }
+}
+
+// --- 操作方法 ---
 
 const loadData = async () => {
   loading.value = true
   try {
     const res: any = await getDocuments({
       page: pagination.page,
-      size: pagination.size,
+      page_size: pagination.size,
       keyword: searchKeyword.value
     })
-    documentList.value = res.list
-    pagination.total = res.total
+    documentList.value = res.list || []
+    pagination.total = res.total || 0
   } catch (error) {
-    // request.ts handles message
+    // 错误在 request.ts 中已被处理
   } finally {
     loading.value = false
   }
 }
 
-const handleSelectionChange = (selection: any[]) => {
+const handleSearch = () => {
+  pagination.page = 1
+  loadData()
+}
+
+const handleSelectionChange = (selection: IDocument[]) => {
   selectedIds.value = selection.map(i => i.id)
 }
 
@@ -164,12 +269,12 @@ const handleUpload = () => {
     formData.append('file', file)
     formData.append('title', file.name.split('.')[0])
     formData.append('number', 'NEW-' + Date.now()) // Temporary placeholder
-    formData.append('category_id', '1') // Default category
+    formData.append('category_id', '1') // 默认分类，未来可优化为上传前选择
 
     loading.value = true
     try {
       const res: any = await uploadFile(formData)
-      ElMessage.success('上传成功，正在识别中...')
+      ElMessage.success('文档上传成功，正在进行结构化解析...')
       loadData()
       if (res.task_id) {
         pollTaskStatus(res.task_id)
@@ -189,88 +294,175 @@ const pollTaskStatus = (taskId: string) => {
       const res: any = await getTaskStatus(taskId)
       if (res.status === 'completed') {
         clearInterval(timer)
-        ElMessage.success('文档识别完成')
+        ElMessage.success('文档解析任务已完成！')
         loadData()
       } else if (res.status === 'failed') {
         clearInterval(timer)
-        ElMessage.error(`识别失败: ${res.error || '未知错误'}`)
+        ElMessage.error(`文档解析任务失败: ${res.error || '未知错误'}`)
         loadData()
       }
     } catch (error) {
-      clearInterval(timer)
+      clearInterval(timer) // 出错停止轮询，避免死循环请求
     }
   }, 5000)
 }
 
-const handleRetry = async (row: any) => {
+const handleRetry = async (row: IDocument) => {
   try {
     const res: any = await retryOCR(row.id)
-    ElMessage.success('已重新提交识别任务')
+    ElMessage.success('已将文档重新提交至解析队列')
     loadData()
     if (res.task_id) {
       pollTaskStatus(res.task_id)
     }
-  } catch (error) {}
+  } catch (error) {
+    // request.ts 已处理错误提示
+  }
 }
 
-const handleEdit = (row: any) => {
-  Object.assign(editForm, {
-    id: row.id,
-    standard_no: row.standard_no,
-    name: row.name,
-    category_id: row.category_id
-  })
-  editVisible.value = true
+const handleHistory = (row: IDocument) => {
+  ElMessage.info(`查看标准 ${row.number} 的历史版本记录（敬请期待）`)
 }
 
-const submitEdit = () => {
-  ElMessage.success('修改成功（模拟）')
-  editVisible.value = false
-  loadData()
+const handlePreview = (row: IDocument) => {
+  ElMessage.info(`正准备预览标准 ${row.number} 的核心内容（敬请期待）`)
 }
 
-const handleHistory = (row: any) => {
-  ElMessage.info(`查看标准 ${row.standard_no} 的历史记录`)
-}
-
-const handlePreview = (row: any) => {
-  ElMessage.info(`预览标准 ${row.standard_no} 的文件`)
-}
-
-const handleDelete = (row: any) => {
-  ElMessageBox.confirm(`确定要删除文件 ${row.number} 吗？`, '提示', {
-    type: 'warning'
+const handleDelete = (row: IDocument) => {
+  ElMessageBox.confirm(`此操作将永久删除文档「${row.title}」，是否继续？`, '危险操作确认', {
+    type: 'warning',
+    confirmButtonText: '确定删除',
+    cancelButtonText: '取消'
   }).then(async () => {
     try {
       await deleteDocument(row.id)
-      ElMessage.success('删除成功')
+      ElMessage.success('文档删除成功')
+      
+      // 处理当前页数据删空的情况
+      const isCurrentPageEmpty = documentList.value.length === 1 && pagination.page > 1
+      if (isCurrentPageEmpty) {
+        pagination.page -= 1
+      }
+      
       loadData()
-    } catch (err) {}
-  })
-}
-
-const getStatusType = (status: number) => {
-  const map: any = { 0: 'warning', 1: 'success', 2: 'danger' }
-  return map[status] || 'info'
-}
-
-const getStatusText = (status: number) => {
-  const map: any = { 0: '处理中', 1: '已完成', 2: '失败' }
-  return map[status] || '等待中'
+    } catch (err) {
+      // request.ts handles errors uniquely for us 
+    }
+  }).catch(() => {})
 }
 </script>
 
 <style scoped lang="scss">
 .admin-documents-page {
+  .table-card {
+    border-radius: 12px;
+
+    :deep(.el-card__header) {
+      border-bottom: 1px solid var(--el-border-color-lighter);
+      padding: 16px 20px;
+    }
+  }
+
   .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-weight: bold;
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 16px;
+
+      .header-icon {
+        font-size: 20px;
+        color: var(--el-color-primary);
+      }
+
+      .count-badge {
+        font-weight: 400;
+        font-size: 12px;
+      }
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
+      .search-input {
+        width: 280px;
+      }
+    }
   }
-  
+
+  // ====== 表格核心样式（Premium） ======
+  .document-table {
+    --el-table-header-bg-color: var(--el-fill-color-light);
+    
+    // 行 Hover 效果
+    :deep(.el-table__row) {
+      transition: background-color 0.25s ease;
+      
+      &:hover > td {
+        background-color: var(--el-color-primary-light-9) !important;
+      }
+    }
+
+    // 标题列带图标样式
+    .title-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .doc-icon {
+        color: var(--el-color-primary-light-3);
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+
+      span {
+        font-weight: 500;
+        color: var(--el-text-color-primary);
+      }
+    }
+    
+    .number-text {
+      font-family: var(--el-font-family-monospace, monospace);
+      font-size: 13px;
+    }
+
+    .time-text {
+      color: var(--el-text-color-regular);
+      font-size: 13px;
+    }
+
+    // 操作列按钮悬停过渡
+    .action-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      
+      .el-button {
+        padding: 4px 8px;
+        transition: all 0.2s;
+        
+        &:hover:not(.is-disabled) {
+          background-color: var(--el-color-primary-light-9);
+          border-radius: 4px;
+        }
+        
+        &.el-button--danger:hover:not(.is-disabled) {
+          background-color: var(--el-color-danger-light-9);
+        }
+      }
+    }
+  }
+
   .pagination-container {
-    margin-top: 20px;
+    margin-top: 24px;
+    padding-bottom: 8px;
     display: flex;
     justify-content: flex-end;
   }

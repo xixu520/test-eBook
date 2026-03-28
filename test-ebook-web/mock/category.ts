@@ -14,10 +14,23 @@ export default [
           { id: 3, parent_id: 1, name: '桩基础', sort_order: 1, doc_count: 43 },
           { id: 4, parent_id: 1, name: '基坑工程', sort_order: 2, doc_count: 85 },
           { id: 5, parent_id: 2, name: '水泥混凝土', sort_order: 1, doc_count: 30 },
-          { id: 6, parent_id: 2, name: '钢筋家电', sort_order: 2, doc_count: 55 },
         ],
       }
     },
+  },
+  {
+    url: '/api/v1/categories',
+    method: 'post',
+    response: ({ body }: any) => {
+      return { code: 200, message: '添加成功', data: { id: Date.now(), ...body } }
+    }
+  },
+  {
+    url: new RegExp('/api/v1/categories/.*'),
+    method: 'put',
+    response: ({ body }: any) => {
+      return { code: 200, message: '更新成功', data: body }
+    }
   },
   {
     url: new RegExp('/api/v1/categories/.*'),

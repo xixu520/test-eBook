@@ -78,7 +78,7 @@ func InitRouter(
 			admin := protected.Group("/admin")
 			admin.Use(middleware.AdminGuard())
 			{
-				admin.GET("/dashboard", mockHandler.GetDashboardStats)
+				admin.GET("/dashboard", standardHandler.GetDashboardStats)
 				admin.GET("/users", userHandler.GetUsers)
 				admin.PUT("/users/:id/status", userHandler.UpdateStatus)
 				admin.DELETE("/users/:id", userHandler.DeleteUser)

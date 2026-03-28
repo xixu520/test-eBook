@@ -256,3 +256,12 @@ func (h *StandardHandler) DeleteFile(c *gin.Context) {
 	}
 	pkg.Success(c, nil)
 }
+
+func (h *StandardHandler) GetDashboardStats(c *gin.Context) {
+	stats, err := h.svc.GetDashboardStats()
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, stats)
+}

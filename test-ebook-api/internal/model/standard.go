@@ -13,6 +13,7 @@ type Category struct {
 	ParentID uint       `json:"parent_id" gorm:"index"`
 	Order    int        `json:"order" gorm:"default:0"`
 	Children []Category `json:"children" gorm:"foreignKey:ParentID"`
+	DocCount int        `json:"doc_count" gorm:"-"`
 }
 
 // StandardFile 建筑标准文件

@@ -58,9 +58,16 @@ func (s *StandardService) UpdateCategory(id uint, name string, parentID uint, or
 		if parentID == id {
 			return errors.New("父分类不能是自己")
 		}
-		_, err := s.repo.FindCategoryByID(parentID)
-		if err != nil {
-			return errors.New("父分类不存在")
+		currentParentID := parentID
+		for currentParentID > 0 {
+			if currentParentID == id {
+				return errors.New("父分类不能是自己的子孙分类")
+			}
+			p, err := s.repo.FindCategoryByID(currentParentID)
+			if err != nil {
+				return errors.New("父分类不存在")
+			}
+			currentParentID = p.ParentID
 		}
 	}
 
@@ -343,4 +350,32 @@ func (s *StandardService) HardDeleteDocuments(ids []uint, emptyAll bool) error {
 
 
 	return s.repo.HardDeleteFiles(toDeleteIDs)
+}
+
+func (s *StandardService) GetDashboardStats() (map[string]interface{}, error) {
+	totalFiles, _ := s.repo.TotalFilesCount()
+	totalCats, _ := s.repo.TotalCategoriesCount()
+	todayFiles, _ := s.repo.TodayUploadedCount()
+	pendingOCR, _ := s.repo.PendingOCRCount()
+	storageUsed, _ := s.repo.TotalStorageUsed()
+	recentFiles, _ := s.repo.GetRecentFiles(5)
+
+	recentActivities := make([]map[string]interface{}, 0)
+	for _, f := range recentFiles {
+		recentActivities = append(recentActivities, map[string]interface{}{
+			"id":      f.ID,
+			"content": "更新了文档: " + f.Title,
+			"time":    f.UpdatedAt.Format("2006-01-02 15:04:05"),
+			"type":    "upload",
+		})
+	}
+
+	return map[string]interface{}{
+		"total_documents":   totalFiles,
+		"total_categories":  totalCats,
+		"today_uploaded":    todayFiles,
+		"pending_ocr":       pendingOCR,
+		"storage_used":      storageUsed,
+		"recent_activities": recentActivities,
+	}, nil
 }

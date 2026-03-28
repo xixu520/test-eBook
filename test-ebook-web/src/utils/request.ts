@@ -27,7 +27,7 @@ service.interceptors.response.use(
     const res = response.data
     // 如果 code 不是 200，则报错
     if (res.code !== 200) {
-      ElMessage.error(res.message || 'Error')
+      ElMessage.error(res.msg || 'Error')
       
       // 401: 未登录或 Token 过期
       if (res.code === 401) {
@@ -35,7 +35,7 @@ service.interceptors.response.use(
         sessionStorage.removeItem('token')
         window.location.href = '/login'
       }
-      return Promise.reject(new Error(res.message || 'Error'))
+      return Promise.reject(new Error(res.msg || 'Error'))
     }
     return res.data
   },
@@ -46,7 +46,9 @@ service.interceptors.response.use(
       sessionStorage.removeItem('token')
       window.location.href = '/login'
     } else {
-      ElMessage.error(error.message || 'Network Error')
+      // 优先显示后端返回的业务错误信息
+      const backendMsg = error.response?.data?.msg || error.response?.data?.message
+      ElMessage.error(backendMsg || error.message || 'Network Error')
     }
     return Promise.reject(error)
   }
