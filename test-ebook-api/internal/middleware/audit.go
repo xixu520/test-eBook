@@ -22,7 +22,12 @@ func AuditMiddleware(db *gorm.DB) gin.HandlerFunc {
 
 		// 读取请求体（为了后续记录详情）
 		var bodyBytes []byte
-		if c.Request.Body != nil {
+		contentType := c.Request.Header.Get("Content-Type")
+		
+		// 遇到大文件上传或 Multipart，不要读取请求体以防止 OOM 风险
+		if contentType != "" && bytes.HasPrefix([]byte(contentType), []byte("multipart/form-data")) {
+			bodyBytes = []byte("文件上传请求或 Multipart 负载")
+		} else if c.Request.Body != nil {
 			bodyBytes, _ = io.ReadAll(c.Request.Body)
 			// 放回请求体供后续 Handler 使用
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
@@ -30,7 +35,7 @@ func AuditMiddleware(db *gorm.DB) gin.HandlerFunc {
 
 		c.Next()
 
-		// 只有成功的操作才记录（可选，也可以记录失败的）
+		// 只有成功的操作才记录
 		if c.Writer.Status() >= 200 && c.Writer.Status() < 300 {
 			username, _ := c.Get("username")
 			usernameStr, ok := username.(string)
@@ -41,10 +46,12 @@ func AuditMiddleware(db *gorm.DB) gin.HandlerFunc {
 			userIDVal, _ := c.Get("userID")
 			userID, _ := userIDVal.(uint)
 			
+			action := mapActionName(method, c.Request.URL.Path)
+			
 			audit := &model.AuditLog{
 				UserID:   userID,
 				Username: usernameStr,
-				Action:   method + " " + c.Request.URL.Path,
+				Action:   action,
 				Details:  string(bodyBytes),
 				IP:       c.ClientIP(),
 			}
@@ -54,4 +61,27 @@ func AuditMiddleware(db *gorm.DB) gin.HandlerFunc {
 			}
 		}
 	}
+}
+
+// mapActionName 将请求方法和路径映射为前端期待的简写标签 (LOGIN/UPLOAD/DELETE/EDIT/VERIFY)
+func mapActionName(method, path string) string {
+	pathBytes := []byte(path)
+	
+	if bytes.Contains(pathBytes, []byte("/auth/login")) {
+		return "LOGIN"
+	}
+	if bytes.Contains(pathBytes, []byte("/documents/upload")) {
+		return "UPLOAD"
+	}
+	if bytes.Contains(pathBytes, []byte("/documents") ) && method == "DELETE" {
+		return "DELETE"
+	}
+	if (bytes.Contains(pathBytes, []byte("/documents")) || bytes.Contains(pathBytes, []byte("/categories"))) && method == "PUT" {
+		return "EDIT"
+	}
+	if bytes.Contains(pathBytes, []byte("/verify")) {
+		return "VERIFY"
+	}
+	
+	return method + " " + path
 }

@@ -87,3 +87,61 @@ func (h *UserHandler) UpdateTheme(c *gin.Context) {
 	}
 	pkg.Success(c, nil)
 }
+
+func (h *UserHandler) CreateUser(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		Role     string `json:"role" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
+		return
+	}
+	if err := h.svc.CreateUser(req.Username, req.Password, req.Role); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
+func (h *UserHandler) UpdateUser(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的用户ID")
+		return
+	}
+	var req struct {
+		Role string `json:"role" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
+		return
+	}
+	if err := h.svc.UpdateUser(uint(id), req.Role); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
+func (h *UserHandler) ResetPassword(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的用户ID")
+		return
+	}
+	var req struct {
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
+		return
+	}
+	if err := h.svc.ResetPassword(uint(id), req.Password); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+

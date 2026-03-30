@@ -6,9 +6,7 @@ export interface DocumentQuery {
   keyword?: string
   category_id?: number
   publisher?: string
-  status?: string
-  start_date?: string
-  end_date?: string
+  implementation_status?: string
 }
 
 export interface Document {
@@ -22,6 +20,10 @@ export interface Document {
   file_size: number
   status: number // 0: processing, 1: processed, 2: failed
   ocr_content?: string
+  publisher?: string
+  issue_date?: string
+  implementation_status?: string
+  verify_status?: string
   created_at: string
 }
 
@@ -58,6 +60,14 @@ export function deleteDocument(id: number) {
   })
 }
 
+export function updateDocument(id: number, data: any) {
+  return request({
+    url: `/documents/${id}`,
+    method: 'put',
+    data
+  })
+}
+
 // --- OCR Tasks ---
 
 export function getTaskStatus(taskId: string) {
@@ -74,8 +84,17 @@ export function retryOCR(docId: number) {
   })
 }
 
+export interface Announcement {
+  id: number
+  title: string
+  content: string
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export function getActiveAnnouncement() {
-  return request({
+  return request<Announcement>({
     url: '/announcements/active',
     method: 'get',
   })

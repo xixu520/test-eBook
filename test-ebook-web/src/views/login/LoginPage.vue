@@ -40,8 +40,9 @@
         </el-button>
         
         <div class="register-link">
-          还没有账号？<el-link type="primary">立即注册</el-link>
+          还没有账号？<el-link type="primary" @click="router.push('/register')">立即注册</el-link>
         </div>
+
       </el-form>
     </el-card>
   </div>

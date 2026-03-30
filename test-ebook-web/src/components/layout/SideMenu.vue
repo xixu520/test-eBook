@@ -15,7 +15,7 @@
         <template #title>全部文件</template>
       </el-menu-item>
       
-      <el-sub-menu v-for="cat in categoryTree" :key="cat.id" :index="cat.id.toString()">
+      <el-sub-menu v-for="cat in categoryTree" :key="cat.ID" :index="cat.ID.toString()">
         <template #title>
           <el-icon><Folder /></el-icon>
           <span>{{ cat.name }}</span>
@@ -23,8 +23,8 @@
         
         <el-menu-item 
           v-for="sub in cat.children" 
-          :key="sub.id" 
-          :index="sub.id.toString()"
+          :key="sub.ID" 
+          :index="sub.ID.toString()"
         >
           {{ sub.name }}
           <span class="count">{{ sub.doc_count }}</span>
@@ -35,9 +35,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { onMounted, computed } from 'vue'
 import { Folder, Files, Fold, Expand } from '@element-plus/icons-vue'
-import { getCategories } from '@/api/category'
+import { useCategoryStore } from '@/stores/category'
 import { useRouter, useRoute } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { useResponsive } from '@/composables/useResponsive'
@@ -47,35 +47,15 @@ const route = useRoute()
 const ui = useUiStore()
 const { isMobile } = useResponsive()
 
-const categories = ref<any[]>([])
+const categoryStore = useCategoryStore()
 const activeCategory = computed(() => (route.query.category_id as string) || 'all')
 
-onMounted(async () => {
-  try {
-    const res: any = await getCategories()
-    categories.value = res
-  } catch (error) {
-    console.error(error)
-  }
+onMounted(() => {
+  categoryStore.fetchCategories()
 })
 
 const categoryTree = computed(() => {
-  const map: any = {}
-  const roots: any[] = []
-  
-  categories.value.forEach(cat => {
-    map[cat.id] = { ...cat, children: [] }
-  })
-  
-  categories.value.forEach(cat => {
-    if (cat.parent_id !== 0 && map[cat.parent_id]) {
-      map[cat.parent_id].children.push(map[cat.id])
-    } else if (cat.parent_id === 0) {
-      roots.push(map[cat.id])
-    }
-  })
-  
-  return roots
+  return categoryStore.categories
 })
 
 const handleSelect = (index: string) => {

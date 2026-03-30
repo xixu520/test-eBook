@@ -14,3 +14,12 @@ export function getInfo() {
     method: 'get',
   })
 }
+
+export function register(data: any) {
+  return request({
+    url: '/auth/register',
+    method: 'post',
+    data,
+  })
+}
+

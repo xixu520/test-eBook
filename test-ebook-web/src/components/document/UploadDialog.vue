@@ -7,22 +7,66 @@
     class="upload-dialog"
   >
     <el-form :model="form" label-width="100px" class="upload-form">
+      <el-form-item label="文件标题" required>
+        <el-input 
+          v-model="form.title" 
+          placeholder="请输入文档标题（名称）" 
+          clearable 
+        />
+      </el-form-item>
+
       <el-form-item label="标准号" required>
         <el-input 
-          v-model="form.standard_no" 
+          v-model="form.number" 
           placeholder="请输入标准号" 
           clearable 
           class="mono-font"
         />
       </el-form-item>
 
-      <el-form-item label="版本/年份" required>
+      <el-form-item label="发布年份" required>
         <el-input 
-          v-model="form.version" 
-          placeholder="请输入年份" 
+          v-model="form.year" 
+          placeholder="请输入年份（如 2024）" 
           clearable 
           class="mono-font"
         />
+      </el-form-item>
+
+      <el-form-item label="具体版本">
+        <el-input 
+          v-model="form.version" 
+          placeholder="请输入版本或修订号" 
+          clearable 
+          class="mono-font"
+        />
+      </el-form-item>
+
+      <el-form-item label="发布机构">
+        <el-input 
+          v-model="form.publisher" 
+          placeholder="请输入发布机构" 
+          clearable 
+        />
+      </el-form-item>
+
+      <el-form-item label="发布日期">
+        <el-date-picker
+          v-model="form.issue_date"
+          type="date"
+          placeholder="选择日期"
+          format="YYYY-MM-DD"
+          value-format="YYYY-MM-DD"
+          style="width: 100%"
+        />
+      </el-form-item>
+
+      <el-form-item label="实施状态">
+        <el-select v-model="form.implementation_status" placeholder="请选择实施状态" style="width: 100%">
+          <el-option label="现行" value="current" />
+          <el-option label="废止" value="obsolete" />
+          <el-option label="即将实施" value="upcoming" />
+        </el-select>
       </el-form-item>
 
       <el-form-item label="所属分类" required>
@@ -31,8 +75,8 @@
           :data="categoryTree"
           placeholder="请选择分类"
           check-strictly
-          node-key="id"
-          :props="{ label: 'name', value: 'id' }"
+          node-key="ID"
+          :props="{ label: 'name', value: 'ID' }"
           style="width: 100%"
         />
       </el-form-item>
@@ -103,8 +147,13 @@ const visible = computed({
 })
 
 const form = reactive({
-  standard_no: '',
+  title: '',
+  number: '',
+  year: '',
   version: '',
+  publisher: '',
+  issue_date: '',
+  implementation_status: 'current',
   category_id: ''
 })
 
@@ -112,7 +161,7 @@ const fileList = ref<any[]>([])
 const uploadingFiles = ref<any[]>([])
 const isUploading = ref(false)
 
-const canUpload = computed(() => form.category_id && form.standard_no && form.version && fileList.value.length > 0)
+const canUpload = computed(() => form.title && form.number && form.year && form.category_id && fileList.value.length > 0)
 
 const handleFileChange = (_file: any, files: any[]) => {
   fileList.value = files
@@ -128,8 +177,13 @@ const handleClose = () => {
 }
 
 const resetForm = () => {
-  form.standard_no = ''
+  form.title = ''
+  form.number = ''
+  form.year = ''
   form.version = ''
+  form.publisher = ''
+  form.issue_date = ''
+  form.implementation_status = 'current'
   form.category_id = ''
   fileList.value = []
   uploadingFiles.value = []
@@ -146,8 +200,13 @@ const startUpload = async () => {
   const tasks = fileList.value.map((file, index) => {
     const formData = new FormData()
     formData.append('file', file.raw)
-    formData.append('standard_no', form.standard_no)
+    formData.append('title', form.title)
+    formData.append('number', form.number)
+    formData.append('year', form.year)
     formData.append('version', form.version)
+    formData.append('publisher', form.publisher)
+    formData.append('issue_date', form.issue_date)
+    formData.append('implementation_status', form.implementation_status)
     formData.append('category_id', form.category_id)
 
     return uploadFile(formData, (progressEvent) => {

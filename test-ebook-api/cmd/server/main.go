@@ -37,17 +37,17 @@ func main() {
 	}
 
 	// 4. Setup Dependencies
-	userRepo := repository.NewUserRepository(database.WriteDB)
-	authService := service.NewAuthService(userRepo)
-	authHandler := handler.NewAuthHandler(authService)
-
 	standardRepo := repository.NewStandardRepository(database.WriteDB)
 	paddleOCR := ocr.NewPaddleClient()
 	standardService := service.NewStandardService(standardRepo, paddleOCR)
 	standardHandler := handler.NewStandardHandler(standardService)
 
+	userRepo := repository.NewUserRepository(database.WriteDB)
 	userService := service.NewUserService(userRepo)
 	userHandler := handler.NewUserHandler(userService)
+
+	authService := service.NewAuthService(userRepo)
+	authHandler := handler.NewAuthHandler(authService, userService, database.WriteDB)
 
 	settingRepo := repository.NewSettingRepository(database.WriteDB)
 	settingService := service.NewSettingService(settingRepo)
@@ -58,6 +58,7 @@ func main() {
 	auditHandler := handler.NewAuditHandler(auditService)
 
 	mockHandler := handler.NewMockHandler()
+
 
 	// 5. Seed Initial Data
 	if err := authService.SeedAdmin(); err != nil {

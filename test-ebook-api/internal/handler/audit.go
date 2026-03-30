@@ -20,8 +20,9 @@ func NewAuditHandler(svc *service.AuditService) *AuditHandler {
 func (h *AuditHandler) GetAuditLogs(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	action := c.Query("action")
 	
-	logs, total, err := h.svc.GetLogs(page, pageSize)
+	logs, total, err := h.svc.GetLogs(page, pageSize, action)
 	if err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return

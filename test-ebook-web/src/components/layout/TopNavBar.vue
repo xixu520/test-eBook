@@ -71,6 +71,7 @@ import { Search, Sunny, Moon, UserFilled, Menu } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { getActiveAnnouncement } from '@/api/document'
+import type { Announcement } from '@/api/document'
 import { useResponsive } from '@/composables/useResponsive'
 import { useUiStore } from '@/stores/ui'
 
@@ -82,7 +83,7 @@ const { isMobile } = useResponsive()
 const siteName = ref('建筑标准文件管理系统')
 const searchKeyword = ref('')
 const showAnnouncement = ref(!sessionStorage.getItem('announcement-closed'))
-const announcement = ref<any>(null)
+const announcement = ref<Announcement | null>(null)
 const isDark = ref(false)
 const searchInputRef = ref()
 const showMobileSearch = ref(false)

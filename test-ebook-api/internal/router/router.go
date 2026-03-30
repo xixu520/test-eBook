@@ -27,6 +27,7 @@ func InitRouter(
 	{
 		// Public routes
 		v1.POST("/auth/login", authHandler.Login)
+		v1.POST("/auth/register", authHandler.Register)
 
 		// Protected routes
 		protected := v1.Group("")
@@ -55,6 +56,9 @@ func InitRouter(
 				documents.POST("/upload", standardHandler.UploadFile)
 				documents.GET("/history", standardHandler.GetFileHistory)
 				documents.GET("/:id", standardHandler.GetFileDetail)
+				documents.PUT("/:id", standardHandler.UpdateFile)
+				documents.GET("/:id/download", standardHandler.DownloadFile)
+				documents.GET("/:id/preview", standardHandler.PreviewFile)
 				documents.DELETE("/:id", standardHandler.DeleteFile)
 				documents.POST("/:id/ocr/retry", standardHandler.RetryOCR)
 			}
@@ -80,7 +84,10 @@ func InitRouter(
 			{
 				admin.GET("/dashboard", standardHandler.GetDashboardStats)
 				admin.GET("/users", userHandler.GetUsers)
+				admin.POST("/users", userHandler.CreateUser)
 				admin.PUT("/users/:id/status", userHandler.UpdateStatus)
+				admin.PUT("/users/:id", userHandler.UpdateUser)
+				admin.PUT("/users/:id/password", userHandler.ResetPassword)
 				admin.DELETE("/users/:id", userHandler.DeleteUser)
 			}
 

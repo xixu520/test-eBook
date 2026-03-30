@@ -13,8 +13,8 @@ func NewAuditService(repo *repository.AuditRepository) *AuditService {
 	return &AuditService{repo: repo}
 }
 
-func (s *AuditService) GetLogs(page, pageSize int) ([]model.AuditLog, int64, error) {
+func (s *AuditService) GetLogs(page, pageSize int, action string) ([]model.AuditLog, int64, error) {
 	if page <= 0 { page = 1 }
 	if pageSize <= 0 { pageSize = 20 }
-	return s.repo.GetLogs(page, pageSize)
+	return s.repo.GetLogs(page, pageSize, action)
 }

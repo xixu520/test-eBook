@@ -10,7 +10,7 @@ export interface AuditLog {
   ip: string
 }
 
-export function getAuditLogs(params: { page: number; page_size: number }) {
+export function getAuditLogs(params: { page: number; page_size: number; action?: string }) {
   return request<{ list: AuditLog[]; total: number }>({
     url: '/audit-logs',
     method: 'get',

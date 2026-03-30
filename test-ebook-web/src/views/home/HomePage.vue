@@ -22,7 +22,7 @@
                 </el-select>
               </el-form-item>
               <el-form-item label="实施状态">
-                <el-select v-model="filters.status" placeholder="全部状态" clearable style="width: 100%">
+                <el-select v-model="filters.implementation_status" placeholder="全部状态" clearable style="width: 100%">
                   <el-option label="现行" value="current" />
                   <el-option label="废止" value="obsolete" />
                   <el-option label="即将实施" value="upcoming" />
@@ -49,8 +49,8 @@
             placeholder="请选择分类"
             clearable
             check-strictly
-            node-key="id"
-            :props="{ label: 'name', value: 'id' }"
+            node-key="ID"
+            :props="{ label: 'name', value: 'ID' }"
           />
         </el-form-item>
         
@@ -61,7 +61,7 @@
         </el-form-item>
 
         <el-form-item label="实施状态">
-          <el-select v-model="filters.status" placeholder="全部状态" clearable style="width: 120px">
+          <el-select v-model="filters.implementation_status" placeholder="全部状态" clearable style="width: 120px">
             <el-option label="现行" value="current" />
             <el-option label="废止" value="obsolete" />
             <el-option label="即将实施" value="upcoming" />
@@ -86,12 +86,6 @@
           <el-button :icon="Download" :disabled="!selectedIds.length">批量下载</el-button>
         </template>
       </div>
-      <div class="right" v-if="!isMobile">
-        <el-button-group>
-          <el-button :icon="Download">导出 Excel</el-button>
-          <el-button :icon="Setting">列配置</el-button>
-        </el-button-group>
-      </div>
     </div>
 
     <!-- 数据表格 -->
@@ -104,28 +98,33 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column prop="standard_no" label="标准号" width="180" sortable class-name="mono-font" />
+      <el-table-column prop="number" label="标准号" width="180" sortable class-name="mono-font" />
       <el-table-column prop="version" label="版本" width="100" align="center">
         <template #default="{ row }">
-          <el-tag :type="row.is_latest ? 'success' : 'info'" size="small">
+          <el-tag type="info" size="small">
             {{ row.version || '未知' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="名称" min-width="250" show-overflow-tooltip />
-      <el-table-column prop="category_name" label="所属分类" width="150" v-if="!isMobile" />
-      <el-table-column prop="issue_date" label="发布日期" width="120" sortable class-name="mono-font" v-if="!isMobile" />
-      <el-table-column prop="status" label="实施状态" width="100" align="center">
+      <el-table-column prop="title" label="名称" min-width="250" show-overflow-tooltip />
+      <el-table-column prop="publisher" label="发布机构" width="150" show-overflow-tooltip v-if="!isMobile" />
+      <el-table-column label="所属分类" width="150" v-if="!isMobile">
         <template #default="{ row }">
-          <el-tag :type="getStatusTagType(row.status)" size="small">
-            {{ getStatusText(row.status) }}
+          {{ row.category?.name || '-' }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="issue_date" label="发布日期" width="120" sortable class-name="mono-font" v-if="!isMobile" />
+      <el-table-column prop="implementation_status" label="实施状态" width="100" align="center">
+        <template #default="{ row }">
+          <el-tag :type="getStatusTagType(row.implementation_status)" size="small">
+            {{ getStatusText(row.implementation_status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="ocr_status" label="OCR 状态" width="100" align="center" v-if="!isMobile">
+      <el-table-column prop="status" label="OCR 状态" width="100" align="center" v-if="!isMobile">
         <template #default="{ row }">
-          <el-tag :type="getOcrTagType(row.ocr_status)" size="small">
-            {{ getOcrStatusText(row.ocr_status) }}
+          <el-tag :type="getOcrTagType(row.status)" size="small">
+            {{ getOcrStatusText(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -139,17 +138,17 @@
       <el-table-column label="操作" :width="isMobile ? 80 : 200" :fixed="isMobile ? false : 'right'" align="center">
         <template #default="{ row }">
           <template v-if="!isMobile">
-            <el-button link type="primary" :icon="View" :disabled="row.ocr_status !== 'completed'" @click="handlePreview(row)">预览</el-button>
-            <el-button link type="primary" :icon="Timer" :disabled="row.ocr_status !== 'completed'" @click="handleShowHistory(row)">历史</el-button>
+            <el-button link type="primary" :icon="View" :disabled="row.status !== 1" @click="handlePreview(row)">预览</el-button>
+            <el-button link type="primary" :icon="Timer" :disabled="row.status !== 1" @click="handleShowHistory(row)">历史</el-button>
             <el-button link type="primary" :icon="Download" @click="handleDownload(row)">下载</el-button>
           </template>
           <el-dropdown v-else trigger="click">
             <el-button link type="primary" :icon="MoreFilled" />
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item :icon="View" :disabled="row.ocr_status !== 'completed'" @click="handlePreview(row)">预览</el-dropdown-item>
+                <el-dropdown-item :icon="View" :disabled="row.status !== 1" @click="handlePreview(row)">预览</el-dropdown-item>
                 <el-dropdown-item :icon="Download" @click="handleDownload(row)">下载</el-dropdown-item>
-                <el-dropdown-item :icon="Timer" :disabled="row.ocr_status !== 'completed'" @click="handleShowHistory(row)">历史</el-dropdown-item>
+                <el-dropdown-item :icon="Timer" :disabled="row.status !== 1" @click="handleShowHistory(row)">历史</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -161,7 +160,7 @@
     <div class="pagination-container" :class="{ 'is-mobile': isMobile }">
       <el-pagination
         v-model:current-page="pagination.page"
-        v-model:page-size="pagination.size"
+        v-model:page-size="pagination.page_size"
         :page-sizes="[10, 20, 50, 100]"
         :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
         :total="pagination.total"
@@ -173,7 +172,7 @@
     <!-- PDF 预览弹窗 -->
     <el-dialog
       v-model="previewVisible"
-      :title="`预览 - ${currentDoc?.name}`"
+      :title="`预览 - ${currentDoc?.title}`"
       width="80%"
       top="5vh"
       destroy-on-close
@@ -197,7 +196,7 @@
     <!-- 历史版本弹窗 -->
     <el-dialog
       v-model="historyVisible"
-      :title="`历史版本 - ${currentHistoryBase?.name}`"
+      :title="`历史版本 - ${currentHistoryBase?.title}`"
       width="600px"
     >
       <el-table :data="historyList" v-loading="historyLoading" border stripe>
@@ -206,7 +205,7 @@
             <el-tag :type="row.is_latest ? 'success' : 'info'">{{ row.version }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="standard_no" label="标准号" width="180" />
+        <el-table-column prop="number" label="标准号" width="180" />
         <el-table-column prop="issue_date" label="发布日期" width="120" />
         <el-table-column label="操作" align="center">
           <template #default="{ row }">
@@ -225,7 +224,7 @@ import {
   View, Timer, Setting, MoreFilled
 } from '@element-plus/icons-vue'
 import { getDocuments, getDocumentHistory } from '@/api/document'
-import { getCategories } from '@/api/category'
+import { useCategoryStore } from '@/stores/category'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute } from 'vue-router'
 import PdfPreview from '@/components/document/PdfPreview.vue'
@@ -241,7 +240,7 @@ const canUpload = computed(() => auth.user && ['admin', 'editor'].includes(auth.
 
 const loading = ref(false)
 const documentList = ref<any[]>([])
-const categories = ref<any[]>([])
+const categoryStore = useCategoryStore()
 const selectedIds = ref<number[]>([])
 
 const previewVisible = ref(false)
@@ -256,6 +255,7 @@ const filters = reactive({
   keyword: (route.query.keyword as string) || '',
   category_id: (route.query.category_id as string) || '',
   publisher: '',
+  implementation_status: '',
   status: '',
   dateRange: []
 })
@@ -269,12 +269,12 @@ const publishers = ['住房和城乡建设部', '国家市场监督管理总局'
 
 const pagination = reactive({
   page: 1,
-  size: 10,
+  page_size: 10,
   total: 0
 })
 
 onMounted(() => {
-  loadCategories()
+  categoryStore.fetchCategories()
   loadData()
 })
 
@@ -285,27 +285,8 @@ watch(() => route.query, (newQuery) => {
   loadData()
 })
 
-const loadCategories = async () => {
-  try {
-    const res: any = await getCategories()
-    categories.value = res
-  } catch (error) {
-    console.error(error)
-  }
-}
-
 const categoryTree = computed(() => {
-  const map: any = {}
-  const roots: any[] = []
-  categories.value.forEach(cat => map[cat.id] = { ...cat, children: [] })
-  categories.value.forEach(cat => {
-    if (cat.parent_id !== 0 && map[cat.parent_id]) {
-      map[cat.parent_id].children.push(map[cat.id])
-    } else if (cat.parent_id === 0) {
-      roots.push(map[cat.id])
-    }
-  })
-  return roots
+  return categoryStore.categories
 })
 
 const loadData = async () => {
@@ -331,7 +312,7 @@ const resetFilters = () => {
   filters.keyword = ''
   filters.category_id = ''
   filters.publisher = ''
-  filters.status = ''
+  filters.implementation_status = ''
   filters.dateRange = []
   loadData()
 }
@@ -343,7 +324,7 @@ const handleSelectionChange = (selection: any[]) => {
 const handlePreview = (row: any) => {
   currentDoc.value = {
     ...row,
-    url: row.url || 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf'
+    url: `/api/v1/documents/${row.ID}/preview`
   }
   previewVisible.value = true
 }
@@ -353,7 +334,7 @@ const handleShowHistory = async (row: any) => {
   historyVisible.value = true
   historyLoading.value = true
   try {
-    const res: any = await getDocumentHistory(row.standard_no)
+    const res: any = await getDocumentHistory(row.number)
     historyList.value = res
   } catch (error) {
     ElMessage.error('获取历史版本失败')
@@ -363,28 +344,27 @@ const handleShowHistory = async (row: any) => {
 }
 
 const handleDownload = (row: any) => {
-  // Mock 下载逻辑
-  window.open(`https://example.com/mock-download/${row.id}`, '_blank')
+  window.open(`/api/v1/documents/${row.ID}/download`, '_blank')
 }
 
-const getOcrTagType = (status: string) => {
-  const types: any = { completed: 'success', pending: 'warning', failed: 'danger' }
+const getOcrTagType = (status: number) => {
+  const types: Record<number, string> = { 1: 'success', 0: 'warning', 2: 'danger' }
   return types[status] || 'info'
 }
 
-const getOcrStatusText = (status: string) => {
-  const texts: any = { completed: '已完成', pending: '识别中', failed: '失败' }
-  return texts[status] || status
+const getOcrStatusText = (status: number) => {
+  const texts: Record<number, string> = { 1: '已完成', 0: '处理中', 2: '失败' }
+  return texts[status] || '未知'
 }
 
 const getVerifyTagType = (status: string) => {
-  const types: any = { pass: 'success', pending: 'warning', retry: 'danger' }
-  return types[status] || 'info'
+  const types: Record<string, string> = { pass: 'success', pending: 'warning', retry: 'danger' }
+  return status ? types[status] || 'info' : 'warning'
 }
 
 const getVerifyStatusText = (status: string) => {
-  const map: any = { pending: '待核验', pass: '核验通过', retry: '需重核' }
-  return map[status] || status
+  const map: Record<string, string> = { pending: '待核验', pass: '核对通过', retry: '需复核' }
+  return status ? map[status] || '待核验' : '待核验'
 }
 
 const getStatusTagType = (status: string) => {
@@ -392,7 +372,7 @@ const getStatusTagType = (status: string) => {
     case 'current': return 'success'
     case 'obsolete': return 'danger'
     case 'upcoming': return 'warning'
-    default: return 'info'
+    default: return 'success'
   }
 }
 
@@ -401,7 +381,7 @@ const getStatusText = (status: string) => {
     case 'current': return '现行'
     case 'obsolete': return '废止'
     case 'upcoming': return '即将实施'
-    default: return '未知'
+    default: return '现行'
   }
 }
 </script>

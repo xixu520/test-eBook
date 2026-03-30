@@ -50,3 +50,12 @@ func (r *UserRepository) DeleteUser(id uint) error {
 func (r *UserRepository) UpdateUserTheme(id uint, theme string) error {
 	return r.db.Model(&model.User{}).Where("id = ?", id).Update("theme", theme).Error
 }
+
+func (r *UserRepository) UpdateUserRole(id uint, role string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).Update("role", role).Error
+}
+
+func (r *UserRepository) UpdateUserPassword(id uint, passwordHash string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).Update("password_hash", passwordHash).Error
+}
+

@@ -94,7 +94,7 @@ func (r *StandardRepository) CreateFile(file *model.StandardFile) error {
 	return r.db.Create(file).Error
 }
 
-func (r *StandardRepository) ListFiles(categoryID uint, year string, page, pageSize int) ([]model.StandardFile, int64, error) {
+func (r *StandardRepository) ListFiles(categoryID uint, year, keyword, publisher, implStatus string, page, pageSize int) ([]model.StandardFile, int64, error) {
 	var files []model.StandardFile
 	var total int64
 
@@ -105,6 +105,15 @@ func (r *StandardRepository) ListFiles(categoryID uint, year string, page, pageS
 	}
 	if year != "" {
 		db = db.Where("year = ?", year)
+	}
+	if keyword != "" {
+		db = db.Where("title LIKE ? OR number LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+	if publisher != "" {
+		db = db.Where("publisher = ?", publisher)
+	}
+	if implStatus != "" {
+		db = db.Where("implementation_status = ?", implStatus)
 	}
 
 	err := db.Count(&total).Error

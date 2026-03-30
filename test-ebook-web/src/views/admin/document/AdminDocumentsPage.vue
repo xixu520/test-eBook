@@ -92,6 +92,9 @@
               <el-button link type="primary" size="small" :icon="View" :disabled="row.status !== 1" @click="handlePreview(row)">
                 预览
               </el-button>
+              <el-button link type="primary" size="small" :icon="Edit" @click="handleEdit(row)">
+                编辑
+              </el-button>
               <el-button link type="primary" size="small" :icon="Timer" :disabled="row.status !== 1" @click="handleHistory(row)">
                 历史
               </el-button>
@@ -115,6 +118,69 @@
         </template>
       </el-table>
 
+      <!-- 编辑属性弹窗 -->
+      <el-dialog
+        v-model="editFormVisible"
+        title="编辑文档属性"
+        width="500px"
+        destroy-on-close
+      >
+        <el-form :model="editForm" :rules="editRules" ref="editFormRef" label-width="100px" style="padding-right: 20px;">
+          <el-form-item label="文档名称" prop="title">
+            <el-input v-model="editForm.title" placeholder="请输入文档名称" />
+          </el-form-item>
+          <el-form-item label="标准号" prop="number">
+            <el-input v-model="editForm.number" placeholder="请输入标准号" />
+          </el-form-item>
+          <el-form-item label="版本" prop="version">
+            <el-input v-model="editForm.version" placeholder="请输入版本号" />
+          </el-form-item>
+          <el-form-item label="发布机构" prop="publisher">
+            <el-select v-model="editForm.publisher" placeholder="请选择发布机构" clearable style="width: 100%">
+              <el-option label="住房和城乡建设部" value="住房和城乡建设部" />
+              <el-option label="国家市场监督管理总局" value="国家市场监督管理总局" />
+              <el-option label="中国建筑工业出版社" value="中国建筑工业出版社" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="发布日期" prop="issue_date">
+            <el-date-picker
+              v-model="editForm.issue_date"
+              type="date"
+              placeholder="选择发布日期"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+          <el-form-item label="实施状态" prop="implementation_status">
+            <el-select v-model="editForm.implementation_status" placeholder="请选择状态" clearable style="width: 100%">
+              <el-option label="现行" value="current" />
+              <el-option label="废止" value="obsolete" />
+              <el-option label="即将实施" value="upcoming" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="所属分类" prop="category_id">
+            <el-tree-select
+              v-model="editForm.category_id"
+              :data="categories"
+              placeholder="请选择所属分类"
+              clearable
+              check-strictly
+              node-key="ID"
+              :props="{ label: 'name', value: 'ID' }"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button @click="editFormVisible = false">取消</el-button>
+            <el-button type="primary" :loading="editFormLoading" @click="submitEdit">
+              保存修改
+            </el-button>
+          </div>
+        </template>
+      </el-dialog>
+
       <!-- 分页区域 -->
       <div class="pagination-container">
         <el-pagination
@@ -135,8 +201,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Search, Plus, Delete, Timer, View, Refresh, Grid, Document } from '@element-plus/icons-vue'
-import { getDocuments, uploadFile, deleteDocument, type Document as IDocument, getTaskStatus, retryOCR } from '@/api/document'
+import { Search, Plus, Delete, Timer, View, Refresh, Grid, Document, Edit } from '@element-plus/icons-vue'
+import { getDocuments, uploadFile, deleteDocument, updateDocument, type Document as IDocument, getTaskStatus, retryOCR } from '@/api/document'
 import { getCategories } from '@/api/category'
 import type { Category } from '@/api/category'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -155,6 +221,55 @@ const pagination = reactive({
   size: 10,
   total: 0
 })
+
+// --- 编辑表单 ---
+const editFormVisible = ref(false)
+const editFormLoading = ref(false)
+const editFormRef = ref<any>(null)
+const editForm = reactive({
+  id: 0,
+  title: '',
+  number: '',
+  version: '',
+  publisher: '',
+  issue_date: '',
+  implementation_status: '',
+  category_id: undefined as number | undefined
+})
+
+const editRules = {
+  title: [{ required: true, message: '请输入文档名称', trigger: 'blur' }]
+}
+
+const handleEdit = (row: IDocument) => {
+  editForm.id = row.id
+  editForm.title = row.title
+  editForm.number = row.number || ''
+  editForm.version = row.version || ''
+  editForm.publisher = row.publisher || ''
+  editForm.issue_date = row.issue_date || ''
+  editForm.implementation_status = row.implementation_status || ''
+  editForm.category_id = row.category_id || undefined
+  editFormVisible.value = true
+}
+
+const submitEdit = async () => {
+  if (!editFormRef.value) return
+  await editFormRef.value.validate(async (valid: boolean) => {
+    if (!valid) return
+    editFormLoading.value = true
+    try {
+      await updateDocument(editForm.id, editForm)
+      ElMessage.success('文档属性已更新')
+      editFormVisible.value = false
+      loadData()
+    } catch (e) {
+      // 错误已统一处理
+    } finally {
+      editFormLoading.value = false
+    }
+  })
+}
 
 onMounted(async () => {
   await loadCategories()

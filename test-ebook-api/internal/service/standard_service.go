@@ -102,7 +102,7 @@ func (s *StandardService) DeleteCategory(id uint) error {
 
 // --- File Logic ---
 
-func (s *StandardService) UploadFile(title, number, year, version string, categoryID uint, fileReader io.Reader, fileName string, fileSize int64) (*model.StandardFile, string, error) {
+func (s *StandardService) UploadFile(title, number, year, version, publisher, issueDate, implStatus string, categoryID uint, fileReader io.Reader, fileName string, fileSize int64) (*model.StandardFile, string, error) {
 	// 1. Verify Category
 	_, err := s.repo.FindCategoryByID(categoryID)
 	if err != nil {
@@ -132,14 +132,17 @@ func (s *StandardService) UploadFile(title, number, year, version string, catego
 
 	// 3. Save to DB
 	standardFile := &model.StandardFile{
-		Title:      title,
-		Number:     number,
-		Year:       year,
-		Version:    version,
-		CategoryID: categoryID,
-		FilePath:   savePath,
-		FileSize:   fileSize,
-		Status:     0,
+		Title:                title,
+		Number:               number,
+		Year:                 year,
+		Version:              version,
+		Publisher:            publisher,
+		IssueDate:            issueDate,
+		ImplementationStatus: implStatus,
+		CategoryID:           categoryID,
+		FilePath:             savePath,
+		FileSize:             fileSize,
+		Status:               0,
 	}
 
 	if err := s.repo.CreateFile(standardFile); err != nil {
@@ -252,10 +255,37 @@ func (s *StandardService) ProcessFile(fileID uint, taskID string) {
 	s.repo.UpdateTask(task)
 }
 
-func (s *StandardService) SearchFiles(categoryID uint, year string, page, pageSize int) ([]model.StandardFile, int64, error) {
+func (s *StandardService) SearchFiles(categoryID uint, year, keyword, publisher, implStatus string, page, pageSize int) ([]model.StandardFile, int64, error) {
 	if page <= 0 { page = 1 }
 	if pageSize <= 0 { pageSize = 10 }
-	return s.repo.ListFiles(categoryID, year, page, pageSize)
+	return s.repo.ListFiles(categoryID, year, keyword, publisher, implStatus, page, pageSize)
+}
+
+func (s *StandardService) UpdateFile(id uint, title, number, version, publisher, issueDate, implStatus string, categoryID uint) error {
+	file, err := s.repo.FindFileByID(id)
+	if err != nil {
+		return errors.New("文件不存在")
+	}
+
+	if categoryID > 0 {
+		_, err := s.repo.FindCategoryByID(categoryID)
+		if err != nil {
+			return errors.New("分类不存在")
+		}
+		file.CategoryID = categoryID
+	} else {
+		file.CategoryID = 0 // Allow unclassified
+	}
+
+	file.Title = title
+	file.Number = number
+	file.Version = version
+	file.Publisher = publisher
+	file.IssueDate = issueDate
+	file.ImplementationStatus = implStatus
+	file.Category = model.Category{} // Clear association so Gorm uses the updated CategoryID
+
+	return s.repo.UpdateFile(file)
 }
 
 func (s *StandardService) GetFileDetail(id uint) (*model.StandardFile, error) {

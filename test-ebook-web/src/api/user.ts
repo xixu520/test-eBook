@@ -26,7 +26,32 @@ export function deleteUser(id: number) {
   })
 }
 
+export function createUser(data: any) {
+  return request({
+    url: '/admin/users',
+    method: 'post',
+    data
+  })
+}
+
+export function updateUser(id: number, data: any) {
+  return request({
+    url: `/admin/users/${id}`,
+    method: 'put',
+    data
+  })
+}
+
+export function resetPassword(id: number, data: any) {
+  return request({
+    url: `/admin/users/${id}/password`,
+    method: 'put',
+    data
+  })
+}
+
 export function updateTheme(theme: string) {
+
   return request({
     url: '/users/me/theme',
     method: 'put',

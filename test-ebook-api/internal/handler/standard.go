@@ -179,6 +179,9 @@ func (h *StandardHandler) UploadFile(c *gin.Context) {
 	year := c.PostForm("year")
 	version := c.PostForm("version")
 	catIDStr := c.PostForm("category_id")
+	publisher := c.PostForm("publisher")
+	issueDate := c.PostForm("issue_date")
+	implStatus := c.PostForm("implementation_status")
 
 	if title == "" || catIDStr == "" {
 		pkg.Error(c, http.StatusBadRequest, 400, "标题和分类不能为空")
@@ -199,7 +202,7 @@ func (h *StandardHandler) UploadFile(c *gin.Context) {
 	}
 	defer f.Close()
 
-	fileModel, taskID, err := h.svc.UploadFile(title, number, year, version, uint(catID), f, file.Filename, file.Size)
+	fileModel, taskID, err := h.svc.UploadFile(title, number, year, version, publisher, issueDate, implStatus, uint(catID), f, file.Filename, file.Size)
 	if err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
@@ -214,10 +217,13 @@ func (h *StandardHandler) UploadFile(c *gin.Context) {
 func (h *StandardHandler) ListFiles(c *gin.Context) {
 	catID, _ := strconv.Atoi(c.DefaultQuery("category_id", "0"))
 	year := c.Query("year")
+	keyword := c.Query("keyword")
+	publisher := c.Query("publisher")
+	implStatus := c.Query("implementation_status")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
-	files, total, err := h.svc.SearchFiles(uint(catID), year, page, pageSize)
+	files, total, err := h.svc.SearchFiles(uint(catID), year, keyword, publisher, implStatus, page, pageSize)
 	if err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
@@ -244,6 +250,35 @@ func (h *StandardHandler) GetFileDetail(c *gin.Context) {
 	pkg.Success(c, file)
 }
 
+func (h *StandardHandler) UpdateFile(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
+		return
+	}
+
+	var input struct {
+		Title                string `json:"title" binding:"required"`
+		Number               string `json:"number"`
+		Version              string `json:"version"`
+		Publisher            string `json:"publisher"`
+		IssueDate            string `json:"issue_date"`
+		ImplementationStatus string `json:"implementation_status"`
+		CategoryID           uint   `json:"category_id"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误: "+err.Error())
+		return
+	}
+
+	if err := h.svc.UpdateFile(uint(id), input.Title, input.Number, input.Version, input.Publisher, input.IssueDate, input.ImplementationStatus, input.CategoryID); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
 func (h *StandardHandler) DeleteFile(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
@@ -264,4 +299,38 @@ func (h *StandardHandler) GetDashboardStats(c *gin.Context) {
 		return
 	}
 	pkg.Success(c, stats)
+}
+
+func (h *StandardHandler) DownloadFile(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
+		return
+	}
+	file, err := h.svc.GetFileDetail(uint(id))
+	if err != nil {
+		pkg.Error(c, http.StatusNotFound, 404, "文件不存在")
+		return
+	}
+	// Trigger file download
+	c.Header("Content-Disposition", "attachment; filename="+file.Title)
+	c.Header("Content-Type", "application/octet-stream")
+	c.File(file.FilePath)
+}
+
+func (h *StandardHandler) PreviewFile(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
+		return
+	}
+	file, err := h.svc.GetFileDetail(uint(id))
+	if err != nil {
+		pkg.Error(c, http.StatusNotFound, 404, "文件不存在")
+		return
+	}
+	// Return file inline for preview (e.g. PDF)
+	c.Header("Content-Disposition", "inline; filename="+file.Title)
+	c.Header("Content-Type", "application/pdf")
+	c.File(file.FilePath)
 }

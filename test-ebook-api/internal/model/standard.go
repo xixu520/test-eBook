@@ -28,9 +28,13 @@ type StandardFile struct {
 	Version     string   `json:"version" gorm:"type:varchar(50)"`        // 版本/修订号
 	CategoryID  uint     `json:"category_id" gorm:"index"`
 	Category    Category `json:"category" gorm:"references:ID"`
-	FilePath    string   `json:"file_path" gorm:"type:varchar(500)"`
-	FileSize    int64    `json:"file_size"`
-	Status      int      `json:"status" gorm:"default:0"`                // 0: 未处理, 1: 已处理/OCR完毕
-	OCRContent  string   `json:"ocr_content" gorm:"type:text"`           // 全文索引预留
-	Tags        string   `json:"tags" gorm:"type:varchar(500)"`          // 逗号分隔的标签
+	FilePath             string   `json:"file_path" gorm:"type:varchar(500)"`
+	FileSize             int64    `json:"file_size"`
+	Status               int      `json:"status" gorm:"default:0"`                // 0: 未处理, 1: 已处理/OCR完毕
+	OCRContent           string   `json:"ocr_content" gorm:"type:text"`           // 全文索引预留
+	Tags                 string   `json:"tags" gorm:"type:varchar(500)"`          // 逗号分隔的标签
+	Publisher            string   `json:"publisher" gorm:"type:varchar(255)"`     // 发布机构
+	IssueDate            string   `json:"issue_date" gorm:"type:varchar(20)"`     // 发布日期
+	ImplementationStatus string   `json:"implementation_status" gorm:"type:varchar(50);default:'current'"` // 实施状态(current, obsolete, upcoming)
+	VerifyStatus         string   `json:"verify_status" gorm:"type:varchar(50);default:'pending'"` // 核验状态(pending, pass, retry)
 }
