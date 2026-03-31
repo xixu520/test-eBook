@@ -41,14 +41,30 @@ func (h *SettingHandler) SaveSettings(c *gin.Context) {
 
 func (h *SettingHandler) TestOCR(c *gin.Context) {
 	var req struct {
-		APIKey    string `json:"api_key"`
-		SecretKey string `json:"secret_key"`
+		Engine string                 `json:"engine"`
+		Config map[string]interface{} `json:"config"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
 		return
 	}
-	if err := h.svc.TestOCRConnection(req.APIKey, req.SecretKey); err != nil {
+	if err := h.svc.TestOCRConnection(req.Engine, req.Config); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "连接失败: "+err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
+func (h *SettingHandler) TestStorage(c *gin.Context) {
+	var req struct {
+		Type   string                 `json:"type"`
+		Config map[string]interface{} `json:"config"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
+		return
+	}
+	if err := h.svc.TestStorageConnection(req.Type, req.Config); err != nil {
 		pkg.Error(c, http.StatusBadRequest, 400, "连接失败: "+err.Error())
 		return
 	}

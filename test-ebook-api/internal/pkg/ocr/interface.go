@@ -7,4 +7,7 @@ type Client interface {
 	
 	// GetResult 获取 OCR 结果，返回内容、状态（success/processing/failed）和错误
 	GetResult(taskID string) (string, string, error)
+
+	// TestConnection 测试 OCR 引擎连通性
+	TestConnection() error
 }

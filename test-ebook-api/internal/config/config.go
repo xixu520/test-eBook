@@ -13,6 +13,7 @@ type Config struct {
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Upload   UploadConfig   `mapstructure:"upload"`
 	OCR      OCRConfig      `mapstructure:"ocr"`
+	Storage  StorageConfig  `mapstructure:"storage"`
 	Log      LogConfig      `mapstructure:"log"`
 }
 
@@ -36,6 +37,22 @@ type UploadConfig struct {
 	Dir       string `mapstructure:"dir"`
 	MaxSizeMB int    `mapstructure:"max_size_mb"`
 }
+type StorageConfig struct {
+	Type                  string `mapstructure:"type"` // local, aliyun_oss, tencent_cos, cstcloud
+	LocalPath             string `mapstructure:"local_path"`
+	MaxSizeMB             int    `mapstructure:"max_size_mb"`
+	AliyunEndpoint        string `mapstructure:"aliyun_endpoint"`
+	AliyunAccessKeyID     string `mapstructure:"aliyun_access_key_id"`
+	AliyunAccessKeySecret string `mapstructure:"aliyun_access_key_secret"`
+	AliyunBucket          string `mapstructure:"aliyun_bucket"`
+	TencentSecretID       string `mapstructure:"tencent_secret_id"`
+	TencentSecretKey      string `mapstructure:"tencent_secret_key"`
+	TencentBucketURL      string `mapstructure:"tencent_bucket_url"`
+	CSTCloudEndpoint      string `mapstructure:"cstcloud_endpoint"`
+	CSTCloudAccessKey     string `mapstructure:"cstcloud_access_key"`
+	CSTCloudSecretKey     string `mapstructure:"cstcloud_secret_key"`
+	CSTCloudBucket        string `mapstructure:"cstcloud_bucket"`
+}
 
 type OCRConfig struct {
 	BaiduAPIKey        string `mapstructure:"baidu_api_key"`
@@ -45,6 +62,9 @@ type OCRConfig struct {
 	PaddleJobURL       string `mapstructure:"paddle_job_url"`
 	TimeoutSeconds     int    `mapstructure:"timeout_seconds"`
 	TaskTimeoutMinutes int    `mapstructure:"task_timeout_minutes"`
+	UseDocOrientationClassify bool `mapstructure:"use_doc_orientation_classify"`
+	UseDocUnwarping           bool `mapstructure:"use_doc_unwarping"`
+	UseChartRecognition        bool `mapstructure:"use_chart_recognition"`
 }
 
 type LogConfig struct {

@@ -12,6 +12,7 @@ import (
 	"test-ebook-api/internal/database"
 	"test-ebook-api/internal/handler"
 	"test-ebook-api/internal/pkg/ocr"
+	"test-ebook-api/internal/pkg/storage"
 	"test-ebook-api/internal/repository"
 	"test-ebook-api/internal/router"
 	"test-ebook-api/internal/service"
@@ -39,7 +40,13 @@ func main() {
 	// 4. Setup Dependencies
 	standardRepo := repository.NewStandardRepository(database.WriteDB)
 	paddleOCR := ocr.NewPaddleClient()
-	standardService := service.NewStandardService(standardRepo, paddleOCR)
+
+	storageEngine, err := storage.NewStorage(config.GlobalConfig.Storage)
+	if err != nil {
+		log.Fatalf("Failed to initialize storage: %v", err)
+	}
+
+	standardService := service.NewStandardService(standardRepo, paddleOCR, storageEngine)
 	standardHandler := handler.NewStandardHandler(standardService)
 
 	userRepo := repository.NewUserRepository(database.WriteDB)
@@ -58,6 +65,7 @@ func main() {
 	auditHandler := handler.NewAuditHandler(auditService)
 
 	mockHandler := handler.NewMockHandler()
+	systemHandler := handler.NewSystemHandler()
 
 
 	// 5. Seed Initial Data
@@ -74,6 +82,7 @@ func main() {
 		userHandler,
 		settingHandler,
 		auditHandler,
+		systemHandler,
 		database.WriteDB,
 	)
 

@@ -19,10 +19,29 @@ ocr:
   baidu_api_key: ""
   baidu_secret_key: ""
   paddle_token: "02ac470b6efd58e73df5818608dfc0a59b30e6a8"
-  paddle_model: "PaddleOCR-VL-1.5"
+  paddle_model: "PP-OCRv5"
   paddle_job_url: "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs"
   timeout_seconds: 60
   task_timeout_minutes: 10
+  use_doc_orientation_classify: false
+  use_doc_unwarping: false
+  use_chart_recognition: false
+
+storage:
+  type: local
+  local_path: uploads
+  max_size_mb: 50
+  aliyun_endpoint: ""
+  aliyun_access_key_id: ""
+  aliyun_access_key_secret: ""
+  aliyun_bucket: ""
+  tencent_secret_id: ""
+  tencent_secret_key: ""
+  tencent_bucket_url: ""
+  cstcloud_endpoint: ""
+  cstcloud_access_key: ""
+  cstcloud_secret_key: ""
+  cstcloud_bucket: ""
 
 log:
   level: debug

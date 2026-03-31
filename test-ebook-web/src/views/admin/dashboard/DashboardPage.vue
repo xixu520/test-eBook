@@ -64,13 +64,60 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <el-row :gutter="20" style="margin-top: 20px">
+      <el-col :span="24">
+        <el-card shadow="never" class="system-status-card">
+          <template #header>
+            <div class="card-header">
+              <el-icon><Monitor /></el-icon>
+              <span>系统监控指标</span>
+            </div>
+          </template>
+          <div class="system-status-content">
+            <el-row :gutter="20" justify="space-around">
+              <el-col :span="5">
+                <div class="progress-box">
+                  <div class="label">CPU 使用率</div>
+                  <el-progress type="dashboard" :percentage="Math.round(systemStatus.cpu)" :color="cpuColor" :width="120" />
+                </div>
+              </el-col>
+              <el-col :span="5">
+                <div class="progress-box">
+                  <div class="label">内存占用</div>
+                  <el-progress type="dashboard" :percentage="Math.round(systemStatus.memory)" :color="memColor" :width="120" />
+                </div>
+              </el-col>
+              <el-col :span="5">
+                <div class="progress-box">
+                  <div class="label">磁盘空间</div>
+                  <el-progress type="dashboard" :percentage="Math.round(systemStatus.disk)" :width="120" />
+                </div>
+              </el-col>
+              <el-col :span="9">
+                <div class="detail-box">
+                  <el-descriptions :column="1" border size="small">
+                    <el-descriptions-item label="系统运行时间">{{ systemStatus.uptime }}</el-descriptions-item>
+                    <el-descriptions-item label="系统版本">{{ systemStatus.version }}</el-descriptions-item>
+                    <el-descriptions-item label="数据库状态">
+                      <el-tag type="success" size="small">{{ systemStatus.db_status }}</el-tag>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="应用占用内存">{{ systemStatus.app_mem?.toFixed(2) }} MB</el-descriptions-item>
+                  </el-descriptions>
+                </div>
+              </el-col>
+            </el-row>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { Files, Upload, Grid, Warning, Operation, PieChart } from '@element-plus/icons-vue'
-import { getDashboardStats } from '@/api/stats'
+import { ref, onMounted, onUnmounted, computed, reactive } from 'vue'
+import { Files, Upload, Grid, Warning, Operation, PieChart, Monitor } from '@element-plus/icons-vue'
+import { getDashboardStats, getSystemStatus } from '@/api/stats'
 
 const stats = ref<any>({
   total_documents: 0,
@@ -96,12 +143,62 @@ const colors = [
   { color: '#6f7ad3', percentage: 100 },
 ]
 
+const systemStatus = reactive({
+  cpu: 0,
+  memory: 0,
+  disk: 0,
+  uptime: '计算中...',
+  version: '-',
+  db_status: '-',
+  app_mem: 0
+})
+
+const cpuColor = (percentage: number) => {
+  if (percentage < 30) return '#67C23A'
+  if (percentage < 70) return '#E6A23C'
+  return '#F56C6C'
+}
+
+const memColor = (percentage: number) => {
+  if (percentage < 50) return '#409EFF'
+  if (percentage < 85) return '#E6A23C'
+  return '#F56C6C'
+}
+
+let timer: any = null
+
+const updateStatus = async () => {
+  try {
+    const res: any = await getSystemStatus()
+    Object.assign(systemStatus, res)
+  } catch (error) {
+    // 失败时不报错，由 api 层的 silent: true 保证
+    console.warn('System status update failed silently')
+  } finally {
+    // 无论成功失败，5秒后再次尝试，除非组件已卸载
+    if (timer !== null) {
+      timer = setTimeout(updateStatus, 5000)
+    }
+  }
+}
+
 onMounted(async () => {
   try {
     const res: any = await getDashboardStats()
     stats.value = res
   } catch (error) {
-    console.error(error)
+    console.error('Failed to load dashboard stats:', error)
+  }
+  
+  // 启动系统状态轮询
+  timer = 0 // 给个非 null 的初始值表示轮询已启动
+  updateStatus()
+})
+
+onUnmounted(() => {
+  if (timer !== null) {
+    clearTimeout(timer)
+    timer = null
   }
 })
 
@@ -191,13 +288,45 @@ const getActivityType = (type: string) => {
     }
   }
 
-  .recent-card, .storage-card {
+  .recent-card, .storage-card, .system-status-card {
     border-radius: 12px;
     height: 400px;
     
     :deep(.el-card__header) {
       padding: 16px 20px;
       border-bottom: 1px solid var(--el-border-color-lighter);
+    }
+  }
+
+  .system-status-card {
+    height: auto;
+    min-height: 250px;
+    
+    .system-status-content {
+      padding: 10px 0;
+      
+      .progress-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        
+        .label {
+          font-size: 14px;
+          color: var(--el-text-color-secondary);
+          font-weight: 500;
+        }
+      }
+      
+      .detail-box {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        
+        :deep(.el-descriptions) {
+          width: 100%;
+        }
+      }
     }
   }
 

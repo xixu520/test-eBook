@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"test-ebook-api/internal/pkg"
 	"test-ebook-api/internal/service"
@@ -313,9 +315,16 @@ func (h *StandardHandler) DownloadFile(c *gin.Context) {
 		return
 	}
 	// Trigger file download
-	c.Header("Content-Disposition", "attachment; filename="+file.Title)
+	stream, err := h.svc.GetFileStream(file.FilePath)
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, "文件打开失败: "+err.Error())
+		return
+	}
+	defer stream.Close()
+
+	c.Header("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(file.Title))
 	c.Header("Content-Type", "application/octet-stream")
-	c.File(file.FilePath)
+	io.Copy(c.Writer, stream)
 }
 
 func (h *StandardHandler) PreviewFile(c *gin.Context) {
@@ -330,7 +339,14 @@ func (h *StandardHandler) PreviewFile(c *gin.Context) {
 		return
 	}
 	// Return file inline for preview (e.g. PDF)
-	c.Header("Content-Disposition", "inline; filename="+file.Title)
+	stream, err := h.svc.GetFileStream(file.FilePath)
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, "文件打开失败: "+err.Error())
+		return
+	}
+	defer stream.Close()
+
+	c.Header("Content-Disposition", "inline; filename*=utf-8''"+url.PathEscape(file.Title))
 	c.Header("Content-Type", "application/pdf")
-	c.File(file.FilePath)
+	io.Copy(c.Writer, stream)
 }

@@ -1,6 +1,13 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
+import Cookies from 'js-cookie'
+
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    silent?: boolean
+  }
+}
 
 const service: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -10,7 +17,7 @@ const service: AxiosInstance = axios.create({
 // 请求拦截器
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    const token = Cookies.get('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -27,12 +34,13 @@ service.interceptors.response.use(
     const res = response.data
     // 如果 code 不是 200，则报错
     if (res.code !== 200) {
-      ElMessage.error(res.msg || 'Error')
+      if (!response.config.silent) {
+        ElMessage.error(res.msg || 'Error')
+      }
       
       // 401: 未登录或 Token 过期
       if (res.code === 401) {
-        localStorage.removeItem('token')
-        sessionStorage.removeItem('token')
+        Cookies.remove('token')
         window.location.href = '/login'
       }
       return Promise.reject(new Error(res.msg || 'Error'))
@@ -40,15 +48,19 @@ service.interceptors.response.use(
     return res.data
   },
   (error) => {
+    const isSilent = error.config?.silent
     if (error.response && error.response.status === 401) {
-      ElMessage.error('登录状态已失效，请重新登录')
-      localStorage.removeItem('token')
-      sessionStorage.removeItem('token')
+      if (!isSilent) {
+        ElMessage.error('登录状态已失效，请重新登录')
+      }
+      Cookies.remove('token')
       window.location.href = '/login'
     } else {
-      // 优先显示后端返回的业务错误信息
-      const backendMsg = error.response?.data?.msg || error.response?.data?.message
-      ElMessage.error(backendMsg || error.message || 'Network Error')
+      if (!isSilent) {
+        // 优先显示后端返回的业务错误信息
+        const backendMsg = error.response?.data?.msg || error.response?.data?.message
+        ElMessage.error(backendMsg || error.message || 'Network Error')
+      }
     }
     return Promise.reject(error)
   }

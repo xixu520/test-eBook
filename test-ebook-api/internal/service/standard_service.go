@@ -9,6 +9,7 @@ import (
 	"test-ebook-api/internal/config"
 	"test-ebook-api/internal/model"
 	"test-ebook-api/internal/pkg/ocr"
+	"test-ebook-api/internal/pkg/storage"
 	"test-ebook-api/internal/repository"
 	"time"
 
@@ -18,12 +19,14 @@ import (
 type StandardService struct {
 	repo      *repository.StandardRepository
 	ocrClient ocr.Client
+	storage   storage.Storage
 }
 
-func NewStandardService(repo *repository.StandardRepository, ocrClient ocr.Client) *StandardService {
+func NewStandardService(repo *repository.StandardRepository, ocrClient ocr.Client, storage storage.Storage) *StandardService {
 	return &StandardService{
 		repo:      repo,
 		ocrClient: ocrClient,
+		storage:   storage,
 	}
 }
 
@@ -109,23 +112,10 @@ func (s *StandardService) UploadFile(title, number, year, version, publisher, is
 		return nil, "", errors.New("分类不存在")
 	}
 
-	// 2. Prepare Storage
-	uploadDir := config.GlobalConfig.Upload.Dir
-	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
-		os.MkdirAll(uploadDir, 0755)
-	}
-
 	ext := filepath.Ext(fileName)
 	newFileName := uuid.New().String() + ext
-	savePath := filepath.Join(uploadDir, newFileName)
-
-	out, err := os.Create(savePath)
-	if err != nil {
-		return nil, "", err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, fileReader)
+	
+	savePath, err := s.storage.Save(newFileName, fileReader)
 	if err != nil {
 		return nil, "", err
 	}
@@ -183,8 +173,53 @@ func (s *StandardService) ProcessFile(fileID uint, taskID string) {
 
 	log.Printf("[OCR] Starting process for file %d, task %s: %s", fileID, taskID, file.FilePath)
 
+	localFilePath := file.FilePath
+
+	// 如果当前存储非本地，需要先下载到临时文件
+	if config.GlobalConfig.Storage.Type != "local" {
+		reader, err := s.storage.Get(file.FilePath)
+		if err != nil {
+			log.Printf("[OCR] 无法从云存储获取文件 %s: %v", file.FilePath, err)
+			file.Status = 2
+			s.repo.UpdateFile(file)
+			task.Status = "failed"
+			task.Error = "无法从云存储获取文件: " + err.Error()
+			s.repo.UpdateTask(task)
+			return
+		}
+
+		tmpFile, err := os.CreateTemp("", "ocr-*"+filepath.Ext(file.FilePath))
+		if err != nil {
+			reader.Close()
+			log.Printf("[OCR] 创建临时文件失败: %v", err)
+			file.Status = 2
+			s.repo.UpdateFile(file)
+			task.Status = "failed"
+			task.Error = "创建临时文件失败: " + err.Error()
+			s.repo.UpdateTask(task)
+			return
+		}
+
+		if _, err := io.Copy(tmpFile, reader); err != nil {
+			reader.Close()
+			tmpFile.Close()
+			os.Remove(tmpFile.Name())
+			log.Printf("[OCR] 下载文件到临时目录失败: %v", err)
+			file.Status = 2
+			s.repo.UpdateFile(file)
+			task.Status = "failed"
+			task.Error = "下载文件到临时目录失败: " + err.Error()
+			s.repo.UpdateTask(task)
+			return
+		}
+		reader.Close()
+		tmpFile.Close()
+		localFilePath = tmpFile.Name()
+		defer os.Remove(localFilePath) // 函数结束后清理临时文件
+	}
+
 	// 1. Submit to OCR
-	jobID, err := s.ocrClient.SubmitTask(file.FilePath)
+	jobID, err := s.ocrClient.SubmitTask(localFilePath)
 	if err != nil {
 		log.Printf("[OCR] Submission failed for file %d, task %s: %v", fileID, taskID, err)
 		file.Status = 2 // Failed
@@ -338,6 +373,10 @@ func (s *StandardService) GetFileHistory(number string) ([]model.StandardFile, e
 	return s.repo.GetFileHistory(number)
 }
 
+func (s *StandardService) GetFileStream(path string) (io.ReadCloser, error) {
+	return s.storage.Get(path)
+}
+
 func (s *StandardService) GetRecycleBin() ([]model.StandardFile, error) {
 	return s.repo.GetRecycleBinFiles()
 }
@@ -373,7 +412,7 @@ func (s *StandardService) HardDeleteDocuments(ids []uint, emptyAll bool) error {
 	if err := s.repo.UnscopedFindFiles(toDeleteIDs, &files); err == nil {
 		for _, f := range files {
 			if f.FilePath != "" {
-				os.Remove(f.FilePath)
+				s.storage.Delete(f.FilePath)
 			}
 		}
 	}

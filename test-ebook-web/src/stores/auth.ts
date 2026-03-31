@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { login, getInfo } from '@/api/auth'
 import { ref } from 'vue'
-
+import Cookies from 'js-cookie'
 export interface User {
   id: number
   username: string
@@ -12,7 +12,7 @@ export interface User {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('token') || sessionStorage.getItem('token') || '')
+  const token = ref(Cookies.get('token') || '')
   const user = ref<User | null>(null)
   const isLoggedIn = ref(!!token.value)
 
@@ -22,8 +22,11 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = res.user
     isLoggedIn.value = true
     
-    const storage = remember ? localStorage : sessionStorage
-    storage.setItem('token', res.token)
+    if (remember) {
+      Cookies.set('token', res.token, { expires: 0.5 })
+    } else {
+      Cookies.set('token', res.token)
+    }
   }
 
   async function fetchUser() {
@@ -36,8 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = ''
     user.value = null
     isLoggedIn.value = false
-    localStorage.removeItem('token')
-    sessionStorage.removeItem('token')
+    Cookies.remove('token')
   }
 
   return {

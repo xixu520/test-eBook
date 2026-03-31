@@ -15,6 +15,7 @@ func InitRouter(
 	userHandler *handler.UserHandler,
 	settingHandler *handler.SettingHandler,
 	auditHandler *handler.AuditHandler,
+	systemHandler *handler.SystemHandler,
 	db *gorm.DB,
 ) *gin.Engine {
 	r := gin.Default()
@@ -83,6 +84,7 @@ func InitRouter(
 			admin.Use(middleware.AdminGuard())
 			{
 				admin.GET("/dashboard", standardHandler.GetDashboardStats)
+				admin.GET("/system/status", systemHandler.GetSystemStatus)
 				admin.GET("/users", userHandler.GetUsers)
 				admin.POST("/users", userHandler.CreateUser)
 				admin.PUT("/users/:id/status", userHandler.UpdateStatus)
@@ -95,6 +97,7 @@ func InitRouter(
 			protected.GET("/settings", settingHandler.GetSettings)
 			protected.PUT("/settings", settingHandler.SaveSettings)
 			protected.POST("/settings/ocr-test", settingHandler.TestOCR)
+			protected.POST("/settings/storage-test", settingHandler.TestStorage)
 			protected.GET("/audit-logs", auditHandler.GetAuditLogs)
 
 			// Announcements

@@ -14,10 +14,15 @@
 
           <template v-if="settings.ocr.engine === 'paddleocr'">
             <el-form-item label="Token (Auth)" required>
-              <el-input v-model="settings.ocr.paddle_config.token" placeholder="请输入身份 Token (Bearer)" show-password />
+              <el-input v-model="settings.ocr.paddle_config.token" placeholder="请输入 AI Studio 访问令牌" show-password />
             </el-form-item>
             <el-form-item label="云端解析模型">
-              <el-input v-model="settings.ocr.paddle_config.model" placeholder="模型名称 (如 PaddleOCR-VL-1.5)" clearable />
+              <el-select v-model="settings.ocr.paddle_config.model" placeholder="请选择模型" style="width: 100%">
+                <el-option label="PaddleOCR-VL-1.5 (推荐)" value="PaddleOCR-VL-1.5" />
+                <el-option label="PaddleOCR-VL" value="PaddleOCR-VL" />
+                <el-option label="PP-OCRv5" value="PP-OCRv5" />
+                <el-option label="PP-StructureV3" value="PP-StructureV3" />
+              </el-select>
             </el-form-item>
             <el-form-item label="增强处理选项" class="advanced-options">
               <div class="options-wrapper">
@@ -71,72 +76,88 @@
           <el-form-item label="存储方式">
             <el-radio-group v-model="settings.storage.type">
               <el-radio label="local">本地存储</el-radio>
-              <el-radio label="s3">S3 兼容存储</el-radio>
-              <el-radio label="oss">阿里云 OSS</el-radio>
+              <el-radio label="aliyun_oss">阿里云 OSS</el-radio>
+              <el-radio label="tencent_cos">腾讯云 COS</el-radio>
+              <el-radio label="cstcloud">中科院数据胶囊 (S3)</el-radio>
             </el-radio-group>
           </el-form-item>
-          <el-form-item label="本地数据目录" v-if="settings.storage.type === 'local'">
-            <el-input v-model="settings.storage.local_path" placeholder="/data/ebook/storage" />
-          </el-form-item>
+
+          <!-- 本地存储配置 -->
+          <template v-if="settings.storage.type === 'local'">
+            <el-form-item label="本地数据目录">
+              <el-input v-model="settings.storage.local_path" placeholder="默认为 uploads/" />
+            </el-form-item>
+          </template>
+
+          <!-- 阿里云 OSS 配置 -->
+          <template v-if="settings.storage.type === 'aliyun_oss'">
+            <el-form-item label="Endpoint" required>
+              <el-input v-model="settings.storage.aliyun_endpoint" placeholder="oss-cn-beijing.aliyuncs.com" />
+            </el-form-item>
+            <el-form-item label="AccessKey ID" required>
+              <el-input v-model="settings.storage.aliyun_access_key_id" placeholder="AccessKey ID" />
+            </el-form-item>
+            <el-form-item label="AccessKey Secret" required>
+              <el-input v-model="settings.storage.aliyun_access_key_secret" placeholder="AccessKey Secret" show-password />
+            </el-form-item>
+            <el-form-item label="Bucket 名称" required>
+              <el-input v-model="settings.storage.aliyun_bucket" placeholder="Bucket Name" />
+            </el-form-item>
+          </template>
+
+          <!-- 腾讯云 COS 配置 -->
+          <template v-if="settings.storage.type === 'tencent_cos'">
+            <el-form-item label="Bucket URL" required>
+              <el-input v-model="settings.storage.tencent_bucket_url" placeholder="example-1250000000.cos.ap-beijing.myqcloud.com" />
+            </el-form-item>
+            <el-form-item label="Secret ID" required>
+              <el-input v-model="settings.storage.tencent_secret_id" placeholder="Secret ID" />
+            </el-form-item>
+            <el-form-item label="Secret Key" required>
+              <el-input v-model="settings.storage.tencent_secret_key" placeholder="Secret Key" show-password />
+            </el-form-item>
+          </template>
+
+          <!-- 中科院数据胶囊 (S3) 配置 -->
+          <template v-if="settings.storage.type === 'cstcloud'">
+            <el-form-item label="Endpoint" required>
+              <el-input v-model="settings.storage.cstcloud_endpoint" placeholder="s3.cstcloud.cn" />
+            </el-form-item>
+            <el-form-item label="Access Key" required>
+              <el-input v-model="settings.storage.cstcloud_access_key" placeholder="Access Key" />
+            </el-form-item>
+            <el-form-item label="Secret Key" required>
+              <el-input v-model="settings.storage.cstcloud_secret_key" placeholder="Secret Key" show-password />
+            </el-form-item>
+            <el-form-item label="Bucket 名称" required>
+              <el-input v-model="settings.storage.cstcloud_bucket" placeholder="Bucket Name" />
+            </el-form-item>
+          </template>
           <el-form-item label="最大文件限制">
-            <el-input v-model="settings.storage.max_size" placeholder="50">
+            <el-input v-model="settings.storage.max_size_mb" placeholder="50">
               <template #append>MB</template>
             </el-input>
           </el-form-item>
           <el-form-item>
+            <el-button type="success" plain @click="handleTestStorageConnection" :loading="testingStorage">测试存储连接</el-button>
             <el-button type="primary" @click="handleSave" :loading="saving">确认修改</el-button>
           </el-form-item>
         </el-form>
       </el-tab-pane>
 
-      <!-- 系统状态 -->
-      <el-tab-pane label="系统运行状态" name="status">
-        <div class="status-container">
-          <el-row :gutter="20">
-            <el-col :span="8">
-              <el-card shadow="hover" class="status-card">
-                <template #header>CPU 使用率</template>
-                <el-progress type="dashboard" :percentage="systemStatus.cpu" :color="cpuColor" />
-              </el-card>
-            </el-col>
-            <el-col :span="8">
-              <el-card shadow="hover" class="status-card">
-                <template #header>内存占用</template>
-                <el-progress type="dashboard" :percentage="systemStatus.memory" :color="memColor" />
-              </el-card>
-            </el-col>
-            <el-col :span="8">
-              <el-card shadow="hover" class="status-card">
-                <template #header>存储空间 (已用)</template>
-                <el-progress type="dashboard" :percentage="systemStatus.disk" />
-              </el-card>
-            </el-col>
-          </el-row>
-          <div class="uptime-info">
-            <el-descriptions title="详细运行指标" :column="2" border>
-              <el-descriptions-item label="运行时间">{{ systemStatus.uptime }}</el-descriptions-item>
-              <el-descriptions-item label="系统版本">v1.2.4-stable</el-descriptions-item>
-              <el-descriptions-item label="API 节点">Node-01 (Beijing)</el-descriptions-item>
-              <el-descriptions-item label="数据库状态">
-                <el-tag type="success">健康 (0.5ms)</el-tag>
-              </el-descriptions-item>
-            </el-descriptions>
-          </div>
-        </div>
-      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { getSettings, saveSettings, testOcrConnection } from '@/api/settings'
+import { ref, reactive, onMounted } from 'vue'
+import { getSettings, saveSettings, testOcrConnection, testStorageConnection } from '@/api/settings'
 import { ElMessage } from 'element-plus'
 
 const activeTab = ref('ocr')
 const saving = ref(false)
 const testing = ref(false)
-const timer = ref<any>(null)
+const testingStorage = ref(false)
 
 const settings = reactive({
   ocr: {
@@ -159,43 +180,44 @@ const settings = reactive({
   },
   storage: {
     type: 'local',
-    local_path: '',
-    max_size: 50
+    local_path: 'uploads',
+    max_size_mb: 50,
+    aliyun_endpoint: '',
+    aliyun_access_key_id: '',
+    aliyun_access_key_secret: '',
+    aliyun_bucket: '',
+    tencent_secret_id: '',
+    tencent_secret_key: '',
+    tencent_bucket_url: '',
+    cstcloud_endpoint: '',
+    cstcloud_access_key: '',
+    cstcloud_secret_key: '',
+    cstcloud_bucket: ''
   }
 })
 
-const systemStatus = reactive({
-  cpu: 0,
-  memory: 0,
-  disk: 0,
-  uptime: '0d 0h 0m'
-})
-
-const cpuColor = (percentage: number) => {
-  if (percentage < 30) return '#67C23A'
-  if (percentage < 70) return '#E6A23C'
-  return '#F56C6C'
-}
-
-const memColor = (percentage: number) => {
-  if (percentage < 50) return '#409EFF'
-  if (percentage < 85) return '#E6A23C'
-  return '#F56C6C'
+// 深度合并函数（保留 target 中的默认值，仅覆盖 source 中存在的值）
+const deepMerge = (target: any, source: any) => {
+  if (!source || typeof source !== 'object') return
+  for (const key in source) {
+    if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
+      if (!target[key] || typeof target[key] !== 'object') {
+        target[key] = {}
+      }
+      deepMerge(target[key], source[key])
+    } else if (source[key] !== undefined && source[key] !== '') {
+      target[key] = source[key]
+    }
+  }
 }
 
 const loadData = async () => {
   try {
     const res: any = await getSettings()
-    Object.assign(settings, res)
-    await refreshStatus()
+    deepMerge(settings, res)
   } catch (error) {
     console.error(error)
   }
-}
-
-const refreshStatus = async () => {
-  // const res: any = await getSystemStatus()
-  // Object.assign(systemStatus, res)
 }
 
 const handleSave = async () => {
@@ -222,34 +244,25 @@ const handleTestConnection = async () => {
   }
 }
 
+const handleTestStorageConnection = async () => {
+  testingStorage.value = true
+  try {
+    await testStorageConnection(settings.storage)
+    ElMessage.success('存储连接测试成功')
+  } catch (error) {
+    // 错误处理在拦截器中
+  } finally {
+    testingStorage.value = false
+  }
+}
+
 onMounted(() => {
   loadData()
-  timer.value = setInterval(refreshStatus, 3000)
-})
-
-onUnmounted(() => {
-  if (timer.value) clearInterval(timer.value)
 })
 </script>
 
 <style scoped lang="scss">
 .settings-page {
-  .status-container {
-    padding: 10px;
-    
-    .status-card {
-      text-align: center;
-      margin-bottom: 20px;
-      :deep(.el-card__header) {
-        font-weight: bold;
-        color: #606266;
-      }
-    }
-    
-    .uptime-info {
-      margin-top: 10px;
-    }
-  }
 
   .advanced-options {
     .options-wrapper {
