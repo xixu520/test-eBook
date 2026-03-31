@@ -1,27 +1,59 @@
+# 建筑标准文件管理系统 (test-eBook) Docker Compose 全栈部署配置
+# 本配置遵循最新的 Docker Compose Specification (V2.x+) 规范，不再建议显式声明 version 字段。
+
 services:
+  # 后端 API 服务 (基于 Go / Gin 框架)
   backend:
+    # 镜像构建配置
     build:
-      context: ./test-ebook-api
-      dockerfile: Dockerfile
+      context: ./test-ebook-api # 指定后端代码构建上下文路径
+      dockerfile: Dockerfile     # 指定使用的 Dockerfile 文件名
+    
+    # 显式指定容器名称，便于日志查看与管理
     container_name: test-ebook-backend
+    
+    # 端口映射：宿主机端口 8182 -> 容器内 API 监听端口 8182
     ports:
       - "8182:8182"
+    
+    # 持久化数据卷挂载：确保数据库与上传文件在容器重启后不丢失
     volumes:
-      - backend-data:/app/data
-      - backend-uploads:/app/uploads
+      - backend-data:/app/data       # 挂载后端 SQLite 数据库目录
+      - backend-uploads:/app/uploads # 挂载用户上传的标准 PDF 文件存储目录
+    
+    # 容器重启策略：除非手动停止，否则在崩溃或宿主机重启时自动拉起
     restart: always
 
+    # 环境变量配置
+    environment:
+      - TZ=Asia/Shanghai # 强制指定容器时区为东八区（上海）
+
+  # 前端 Web 门户 (基于 Vue.js / Nginx)
   frontend:
+    # 镜像构建配置
     build:
-      context: ./test-ebook-web
-      dockerfile: Dockerfile
+      context: ./test-ebook-web # 指定前端代码构建上下文
+      dockerfile: Dockerfile    # 指定前端使用的 Dockerfile
+    
+    # 显式指定容器名称
     container_name: test-ebook-frontend
+    
+    # 端口映射：宿主机 HTTP 访问端口 3000 -> 容器内 Nginx 监听端口 80
     ports:
       - "3000:80"
+    
+    # 服务启动依赖关系：确保后端 API 服务就绪后再启动前端
     depends_on:
       - backend
+    
+    # 容器重启策略
     restart: always
 
+    # 环境变量配置
+    environment:
+      - TZ=Asia/Shanghai # 强制指定容器时区为东八区
+
+# 命名卷 (Volumes) 定义：用于容器间数据持久化共享
 volumes:
-  backend-data:
-  backend-uploads:
+  backend-data:    # 用于存储核心业务数据的 SQLite 数据库文件
+  backend-uploads: # 用于存储用户上传的所有原生 PDF 建筑标准文件
