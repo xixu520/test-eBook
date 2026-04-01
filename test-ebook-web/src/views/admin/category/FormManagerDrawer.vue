@@ -68,6 +68,7 @@
                     <el-option label="数字输入" value="number" />
                     <el-option label="日期选择" value="date" />
                     <el-option label="下拉选择" value="select" />
+                    <el-option label="复选框" value="checkbox" />
                   </el-select>
                 </template>
               </el-table-column>
@@ -101,7 +102,7 @@
               </el-table-column>
               <el-table-column label="扩展配置 (Options)" min-width="200">
                 <template #default="{ row }">
-                  <div v-if="row.field_type === 'select'" class="option-config">
+                  <div v-if="row.field_type === 'select' || row.field_type === 'checkbox'" class="option-config">
                      <el-input v-model="row.options" placeholder="多选项用,隔开 (选项A,选项B)" size="small" />
                   </div>
                   <span v-else class="text-disabled">无需配置</span>

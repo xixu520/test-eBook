@@ -49,6 +49,18 @@
               :value="opt" 
             />
           </el-select>
+          <!-- 复选框组 -->
+          <el-checkbox-group
+            v-else-if="field.field_type === 'checkbox'"
+            v-model="form.dynamic_fields[field.ID!]"
+          >
+            <el-checkbox 
+              v-for="opt in (field.options || '').split(',')" 
+              :key="opt" 
+              :label="opt" 
+              :value="opt" 
+            />
+          </el-checkbox-group>
         </el-form-item>
       </template>
 
@@ -170,10 +182,15 @@ watch(() => form.category_id, async (newVal) => {
     if (targetForm) {
       currentFormFields.value = targetForm.fields || []
       // 初始化默认值
-      form.dynamic_fields = {}
+      const nextFields: Record<number, any> = {}
       currentFormFields.value.forEach(f => {
-        form.dynamic_fields[f.ID!] = f.default_value || ''
+        if (f.field_type === 'checkbox') {
+          nextFields[f.ID!] = f.default_value ? f.default_value.split(',') : []
+        } else {
+          nextFields[f.ID!] = f.default_value || ''
+        }
       })
+      form.dynamic_fields = nextFields
     }
   } else {
     currentFormFields.value = []
@@ -227,8 +244,13 @@ const startUpload = async () => {
     formData.append('title', form.title)
     formData.append('category_id', String(form.category_id))
     
-    // 动态字段
-    formData.append('dynamic_fields', JSON.stringify(form.dynamic_fields))
+    // 动态字段处理 (多选需 join)
+    const finalizedFields: Record<number, string> = {}
+    Object.keys(form.dynamic_fields).forEach(key => {
+      const val = form.dynamic_fields[Number(key)]
+      finalizedFields[Number(key)] = Array.isArray(val) ? val.join(',') : String(val)
+    })
+    formData.append('dynamic_fields', JSON.stringify(finalizedFields))
 
     // 映射兼容旧字段（可选，便于后端迁移期稳定）
     const getFieldVal = (key: string) => {

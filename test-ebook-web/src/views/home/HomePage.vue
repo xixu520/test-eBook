@@ -34,6 +34,17 @@
                   <el-select v-if="f.field_type === 'select'" v-model="dynamicFilters[f.ID!]" clearable style="width: 100%">
                     <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
                   </el-select>
+                  <el-select 
+                    v-else-if="f.field_type === 'checkbox'" 
+                    v-model="dynamicFilters[f.ID!]" 
+                    multiple
+                    collapse-tags
+                    collapse-tags-tooltip
+                    clearable 
+                    style="width: 100%"
+                  >
+                    <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+                  </el-select>
                   <el-date-picker v-else-if="f.field_type === 'date'" v-model="dynamicFilters[f.ID!]" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
                   <el-input v-else v-model="dynamicFilters[f.ID!]" placeholder="输入过滤值" clearable />
                 </el-form-item>
@@ -73,6 +84,19 @@
               v-model="dynamicFilters[f.ID!]"
               placeholder="请选择"
               clearable
+              style="width: 140px"
+              @change="loadData"
+            >
+              <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+            </el-select>
+            <el-select 
+              v-else-if="f.field_type === 'checkbox'" 
+              v-model="dynamicFilters[f.ID!]" 
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              clearable 
+              placeholder="多选"
               style="width: 140px"
               @change="loadData"
             >
@@ -137,15 +161,23 @@
 
       <!-- 动态展示列 -->
       <template v-for="col in displayColumns" :key="col.ID">
-        <el-table-column 
-          :prop="col.field_key" 
-          :label="col.label" 
-          min-width="150" 
-          v-if="!isMobile"
-          show-overflow-tooltip
-        >
+        <el-table-column :label="col.label" min-width="150" show-overflow-tooltip v-if="!isMobile">
           <template #default="{ row }">
-            {{ getDynamicFieldValue(row, col.ID!) }}
+            <template v-if="col.field_type === 'checkbox'">
+              <div class="tag-group">
+                <el-tag 
+                  v-for="tag in (getDynamicFieldValue(row, col.ID!) || '').split(',').filter((v: string) => !!v)" 
+                  :key="tag" 
+                  size="small" 
+                  class="field-tag"
+                >
+                  {{ tag }}
+                </el-tag>
+              </div>
+            </template>
+            <template v-else>
+              {{ getDynamicFieldValue(row, col.ID!) }}
+            </template>
           </template>
         </el-table-column>
       </template>
@@ -333,7 +365,7 @@ const filters = reactive({
   category_id: (route.query.category_id as string) || ''
 })
 
-const dynamicFilters = reactive<Record<number, string>>({})
+const dynamicFilters = reactive<Record<number, any>>({})
 const displayColumns = ref<FormField[]>([])
 const filterFields = ref<FormField[]>([])
 const allForms = ref<IForm[]>([])

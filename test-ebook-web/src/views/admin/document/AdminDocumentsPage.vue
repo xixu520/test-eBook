@@ -62,6 +62,20 @@
           >
             <el-option v-for="opt in (field.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
           </el-select>
+          <!-- 多选筛选器 -->
+          <el-select 
+            v-else-if="field.field_type === 'checkbox'"
+            v-model="dynamicFilters[field.ID!]"
+            size="small"
+            placeholder="多选"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            clearable
+            @change="handleSearch"
+          >
+            <el-option v-for="opt in (field.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+          </el-select>
           <el-date-picker
             v-else-if="field.field_type === 'date'"
             v-model="dynamicFilters[field.ID!]"
@@ -96,9 +110,23 @@
 
         <!-- 动态扩展列 -->
         <template v-for="col in displayColumns" :key="col.ID">
-          <el-table-column :prop="col.field_key" :label="col.label" min-width="150" show-overflow-tooltip>
+          <el-table-column :prop="col.field_key" :label="col.label" min-width="170" show-overflow-tooltip>
             <template #default="{ row }">
-              {{ getDynamicFieldValue(row, col.ID!) }}
+              <template v-if="col.field_type === 'checkbox'">
+                <div class="tag-group">
+                  <el-tag 
+                    v-for="tag in (getDynamicFieldValue(row, col.ID!) || '').split(',').filter(v => !!v)" 
+                    :key="tag" 
+                    size="small" 
+                    class="field-tag"
+                  >
+                    {{ tag }}
+                  </el-tag>
+                </div>
+              </template>
+              <template v-else>
+                {{ getDynamicFieldValue(row, col.ID!) }}
+              </template>
             </template>
           </el-table-column>
         </template>
@@ -248,6 +276,18 @@
                   >
                     <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
                   </el-select>
+                  <!-- 复选框 -->
+                  <el-checkbox-group
+                    v-else-if="f.field_type === 'checkbox'"
+                    v-model="editForm.dynamic_fields[f.ID!]"
+                  >
+                    <el-checkbox 
+                      v-for="opt in (f.options || '').split(',')" 
+                      :key="opt" 
+                      :label="opt" 
+                      :value="opt" 
+                    />
+                  </el-checkbox-group>
                   <el-input-number 
                     v-else-if="f.field_type === 'number'"
                     v-model="editForm.dynamic_fields[f.ID!]"
@@ -327,7 +367,7 @@ const loading = ref(false)
 const documentList = ref<IDocument[]>([])
 const searchKeyword = ref('')
 const searchCategoryID = ref<number | undefined>()
-const dynamicFilters = reactive<Record<number, string>>({})
+const dynamicFilters = reactive<Record<number, any>>({})
 const forms = ref<IForm[]>([])
 const displayColumns = ref<FormField[]>([])
 const filterFields = ref<FormField[]>([])
@@ -352,7 +392,7 @@ const editForm = reactive({
   id: 0,
   title: '',
   category_id: undefined as number | undefined,
-  dynamic_fields: {} as Record<number, string>,
+  dynamic_fields: {} as Record<number, any>,
   status: 0,
   verify_status: 'pending'
 })
@@ -365,11 +405,16 @@ const handleEdit = async (row: IDocument) => {
   editForm.status = row.status
   editForm.verify_status = row.verify_status || 'pending'
   
-  // 处理动态字段
+  // 处理动态字段 (针对多选字段做 split)
   editForm.dynamic_fields = {}
   if (row.field_values) {
     row.field_values.forEach(fv => {
-      editForm.dynamic_fields[fv.field_id] = fv.value
+      const field = editFields.value.find(f => f.ID === fv.field_id)
+      if (field && field.field_type === 'checkbox') {
+        editForm.dynamic_fields[fv.field_id] = fv.value ? fv.value.split(',') : []
+      } else {
+        editForm.dynamic_fields[fv.field_id] = fv.value
+      }
     })
   }
   
@@ -401,13 +446,18 @@ const submitEdit = async () => {
     if (!valid) return
     editFormLoading.value = true
     try {
-      // 构造提交数据
+      // 构造提交数据 (多选字段需 join)
+      const finalizedFields = Object.keys(editForm.dynamic_fields).map(key => {
+        const val = editForm.dynamic_fields[Number(key)]
+        return {
+          field_id: Number(key),
+          value: Array.isArray(val) ? val.join(',') : String(val)
+        }
+      })
+      
       const payload = {
         ...editForm,
-        dynamic_fields: Object.keys(editForm.dynamic_fields).map(key => ({
-          field_id: Number(key),
-          value: editForm.dynamic_fields[Number(key)]
-        }))
+        dynamic_fields: finalizedFields
       }
       await updateDocument(editForm.id, payload)
       ElMessage.success('文档已更新')

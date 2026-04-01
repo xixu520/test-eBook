@@ -4,7 +4,7 @@ export interface FormField {
   ID?: number
   label: string
   field_key: string
-  field_type: 'input' | 'select' | 'date' | 'number'
+  field_type: 'input' | 'select' | 'date' | 'number' | 'checkbox'
   is_required: boolean
   options?: string // JSON 数组字符串
   order: number
