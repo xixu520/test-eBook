@@ -14,20 +14,30 @@
           <div class="mobile-filter-content">
             <el-form :model="filters" label-position="top">
               <el-form-item label="关键字">
-                <el-input v-model="filters.keyword" placeholder="搜索标准号或名称" clearable @keyup.enter="loadData" />
+                <el-input v-model="filters.keyword" placeholder="搜索关键词" clearable @keyup.enter="loadData" />
               </el-form-item>
-              <el-form-item label="发布机构">
-                <el-select v-model="filters.publisher" placeholder="全部机构" clearable style="width: 100%">
-                  <el-option v-for="p in publishers" :key="p" :label="p" :value="p" />
-                </el-select>
+              <el-form-item label="分类">
+                <el-tree-select
+                  v-model="filters.category_id"
+                  :data="categoryTree"
+                  placeholder="选择分类"
+                  clearable
+                  check-strictly
+                  node-key="ID"
+                  :props="{ label: 'name', value: 'ID' }"
+                  @change="handleCategoryChange"
+                />
               </el-form-item>
-              <el-form-item label="实施状态">
-                <el-select v-model="filters.implementation_status" placeholder="全部状态" clearable style="width: 100%">
-                  <el-option label="现行" value="current" />
-                  <el-option label="废止" value="obsolete" />
-                  <el-option label="即将实施" value="upcoming" />
-                </el-select>
-              </el-form-item>
+              <!-- 动态字段 (Mobile) -->
+              <template v-for="f in filterFields" :key="f.ID">
+                <el-form-item :label="f.label">
+                  <el-select v-if="f.field_type === 'select'" v-model="dynamicFilters[f.ID!]" clearable style="width: 100%">
+                    <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+                  </el-select>
+                  <el-date-picker v-else-if="f.field_type === 'date'" v-model="dynamicFilters[f.ID!]" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+                  <el-input v-else v-model="dynamicFilters[f.ID!]" placeholder="输入过滤值" clearable />
+                </el-form-item>
+              </template>
               <div class="filter-actions">
                 <el-button type="primary" @click="loadData">查询</el-button>
                 <el-button @click="resetFilters">重置</el-button>
@@ -39,10 +49,10 @@
 
       <el-form v-else :inline="true" :model="filters" class="filter-form">
         <el-form-item label="关键字">
-          <el-input v-model="filters.keyword" placeholder="搜索标准号或名称" clearable @keyup.enter="loadData" />
+          <el-input v-model="filters.keyword" placeholder="搜索关键词" clearable @keyup.enter="loadData" />
         </el-form-item>
         
-        <el-form-item label="分类" v-if="!route.query.category_id">
+        <el-form-item label="分类">
           <el-tree-select
             v-model="filters.category_id"
             :data="categoryTree"
@@ -51,22 +61,42 @@
             check-strictly
             node-key="ID"
             :props="{ label: 'name', value: 'ID' }"
+            @change="handleCategoryChange"
           />
         </el-form-item>
         
-        <el-form-item label="发布机构">
-          <el-select v-model="filters.publisher" placeholder="全部机构" clearable style="width: 160px">
-            <el-option v-for="p in publishers" :key="p" :label="p" :value="p" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="实施状态">
-          <el-select v-model="filters.implementation_status" placeholder="全部状态" clearable style="width: 120px">
-            <el-option label="现行" value="current" />
-            <el-option label="废止" value="obsolete" />
-            <el-option label="即将实施" value="upcoming" />
-          </el-select>
-        </el-form-item>
+        <!-- 动态筛选器 -->
+        <template v-for="f in filterFields" :key="f.ID">
+          <el-form-item :label="f.label">
+            <el-select 
+              v-if="f.field_type === 'select'"
+              v-model="dynamicFilters[f.ID!]"
+              placeholder="请选择"
+              clearable
+              style="width: 140px"
+              @change="loadData"
+            >
+              <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+            </el-select>
+            <el-date-picker
+              v-else-if="f.field_type === 'date'"
+              v-model="dynamicFilters[f.ID!]"
+              type="date"
+              placeholder="选择日期"
+              value-format="YYYY-MM-DD"
+              style="width: 140px"
+              @change="loadData"
+            />
+            <el-input 
+              v-else 
+              v-model="dynamicFilters[f.ID!]" 
+              placeholder="搜索值" 
+              clearable 
+              style="width: 140px"
+              @keyup.enter="loadData"
+            />
+          </el-form-item>
+        </template>
         
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="loadData">查询</el-button>
@@ -98,22 +128,33 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column prop="number" label="标准号" width="180" sortable class-name="mono-font" />
-      <el-table-column prop="version" label="版本" width="100" align="center">
+      
+      <el-table-column prop="title" label="文档名称" min-width="250" show-overflow-tooltip>
         <template #default="{ row }">
-          <el-tag type="info" size="small">
-            {{ row.version || '未知' }}
-          </el-tag>
+           <el-button link type="primary" style="font-weight:600" @click="handleShowDetail(row)">{{ row.title }}</el-button>
         </template>
       </el-table-column>
-      <el-table-column prop="title" label="名称" min-width="250" show-overflow-tooltip />
-      <el-table-column prop="publisher" label="发布机构" width="150" show-overflow-tooltip v-if="!isMobile" />
-      <el-table-column label="所属分类" width="150" v-if="!isMobile">
+
+      <!-- 动态展示列 -->
+      <template v-for="col in displayColumns" :key="col.ID">
+        <el-table-column 
+          :prop="col.field_key" 
+          :label="col.label" 
+          min-width="150" 
+          v-if="!isMobile"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">
+            {{ getDynamicFieldValue(row, col.ID!) }}
+          </template>
+        </el-table-column>
+      </template>
+
+      <el-table-column label="分类" width="130" v-if="!isMobile">
         <template #default="{ row }">
-          {{ row.category?.name || '-' }}
+          <el-tag size="small" type="info" round effect="plain">{{ row.category?.name || '未分类' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="implementation_date" label="实施日期" width="120" sortable class-name="mono-font" v-if="!isMobile" />
       <el-table-column prop="implementation_status" label="实施状态" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="getStatusTagType(row.implementation_status)" size="small">
@@ -214,6 +255,40 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <!-- 文档详情弹窗 -->
+    <el-dialog
+      v-model="detailVisible"
+      title="文档详情"
+      width="500px"
+      custom-class="detail-dialog"
+    >
+      <div v-if="currentDoc" class="detail-container">
+        <div class="detail-header">
+           <el-icon class="doc-icon"><Document /></el-icon>
+           <div class="title">{{ currentDoc.title }}</div>
+        </div>
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="所属分类">
+            {{ currentDoc.category?.name || '未分类' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="文件大小">
+            {{ (currentDoc.file_size / 1024 / 1024).toFixed(2) }} MB
+          </el-descriptions-item>
+          <el-descriptions-item label="上传时间">
+            {{ currentDoc.created_at }}
+          </el-descriptions-item>
+          <!-- 动态分配解析展示 -->
+          <el-descriptions-item v-for="fv in (currentDoc.field_values || [])" :key="fv.field_id" :label="fv.field?.label || '属性'">
+             {{ fv.value }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="handlePreview(currentDoc)">预览文档内容</el-button>
+        <el-button @click="detailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -221,9 +296,10 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { 
   Search, RefreshLeft, Upload, Download, 
-  View, Timer, MoreFilled
+  View, Timer, MoreFilled, Document
 } from '@element-plus/icons-vue'
 import { getDocuments, getDocumentHistory } from '@/api/document'
+import { getForms, type Form as IForm, type FormField } from '@/api/form'
 import { useCategoryStore } from '@/stores/category'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute } from 'vue-router'
@@ -244,6 +320,7 @@ const categoryStore = useCategoryStore()
 const selectedIds = ref<number[]>([])
 
 const previewVisible = ref(false)
+const detailVisible = ref(false)
 const uploadVisible = ref(false)
 const historyVisible = ref(false)
 const currentDoc = ref<any>(null)
@@ -253,19 +330,18 @@ const historyLoading = ref(false)
 
 const filters = reactive({
   keyword: (route.query.keyword as string) || '',
-  category_id: (route.query.category_id as string) || '',
-  publisher: '',
-  implementation_status: '',
-  status: '',
-  dateRange: []
+  category_id: (route.query.category_id as string) || ''
 })
+
+const dynamicFilters = reactive<Record<number, string>>({})
+const displayColumns = ref<FormField[]>([])
+const filterFields = ref<FormField[]>([])
+const allForms = ref<IForm[]>([])
 
 const activeFilters = ref([])
 const hasActiveFilters = computed(() => {
-  return !!(filters.keyword || filters.publisher || filters.status)
+  return filters.keyword || Object.values(dynamicFilters).some(v => !!v)
 })
-
-const publishers = ['住房和城乡建设部', '国家市场监督管理总局', '中国建筑工业出版社']
 
 const pagination = reactive({
   page: 1,
@@ -292,13 +368,21 @@ const categoryTree = computed(() => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res: any = await getDocuments({
-      ...pagination,
-      ...filters,
-      category_id: filters.category_id ? Number(filters.category_id) : undefined,
-      start_date: filters.dateRange?.[0],
-      end_date: filters.dateRange?.[1]
+    const query: any = {
+      page: pagination.page,
+      page_size: pagination.page_size,
+      keyword: filters.keyword,
+      category_id: filters.category_id ? Number(filters.category_id) : undefined
+    }
+    
+    // 动态属性过滤
+    Object.keys(dynamicFilters).forEach(fid => {
+      if (dynamicFilters[Number(fid)]) {
+        query[`filter[${fid}]`] = dynamicFilters[Number(fid)]
+      }
     })
+
+    const res: any = await getDocuments(query)
     documentList.value = res.list
     pagination.total = res.total
   } catch (error) {
@@ -308,17 +392,59 @@ const loadData = async () => {
   }
 }
 
+const handleCategoryChange = async (catID: number) => {
+  if (allForms.value.length === 0) {
+    const res = await getForms()
+    allForms.value = res as any
+  }
+  
+  const cat = findCategory(categoryTree.value, catID)
+  if (cat && cat.form_id) {
+    const f = allForms.value.find(form => form.ID === cat.form_id)
+    if (f) {
+      displayColumns.value = f.fields.filter(field => field.show_in_list)
+      filterFields.value = f.fields.filter(field => field.show_in_filter)
+    }
+  } else {
+    displayColumns.value = []
+    filterFields.value = []
+  }
+  loadData()
+}
+
+const findCategory = (tree: any[], id: number): any => {
+  for (const node of tree) {
+    if (node.ID === id) return node
+    if (node.children?.length) {
+      const found = findCategory(node.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const getDynamicFieldValue = (row: any, fieldID: number) => {
+  if (!row.field_values) return '-'
+  const fv = row.field_values.find((v: any) => v.field_id === fieldID)
+  return fv ? fv.value : '-'
+}
+
 const resetFilters = () => {
   filters.keyword = ''
   filters.category_id = ''
-  filters.publisher = ''
-  filters.implementation_status = ''
-  filters.dateRange = []
+  Object.keys(dynamicFilters).forEach(k => delete dynamicFilters[Number(k)])
+  displayColumns.value = []
+  filterFields.value = []
   loadData()
 }
 
 const handleSelectionChange = (selection: any[]) => {
   selectedIds.value = selection.map(item => item.id)
+}
+
+const handleShowDetail = (row: any) => {
+  currentDoc.value = row
+  detailVisible.value = true
 }
 
 const handlePreview = (row: any) => {

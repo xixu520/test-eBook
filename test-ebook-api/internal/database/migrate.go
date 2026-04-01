@@ -15,5 +15,6 @@ func AutoMigrate() error {
 		&model.UploadTask{},
 		&model.Form{},
 		&model.FormField{},
+		&model.DocumentFieldValue{},
 	)
 }

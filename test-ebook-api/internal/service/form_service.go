@@ -20,6 +20,10 @@ func (s *FormService) GetForms() ([]model.Form, error) {
 	return s.repo.GetFormsWithFields()
 }
 
+func (s *FormService) GetFormByID(id uint) (*model.Form, error) {
+	return s.repo.FindFormByID(id)
+}
+
 func (s *FormService) CreateForm(name, description string) (*model.Form, error) {
 	form := &model.Form{
 		Name:        name,

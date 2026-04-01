@@ -57,15 +57,11 @@ func main() {
 
 	standardRepo := repository.NewStandardRepository(database.WriteDB)
 	uploadTaskRepo := repository.NewUploadTaskRepository(database.WriteDB)
+	docFieldRepo := repository.NewDocumentFieldValueRepository(database.WriteDB)
 
 	paddleOCR := ocr.NewPaddleClient()
 
-	// 6. Setup Services & Handlers
-	standardService := service.NewStandardService(
-		standardRepo, paddleOCR, storageEngine,
-		stagingStorage, uploadTaskRepo, uploadQueue,
-	)
-	standardHandler := handler.NewStandardHandler(standardService)
+
 
 	userRepo := repository.NewUserRepository(database.WriteDB)
 	userService := service.NewUserService(userRepo)
@@ -87,6 +83,16 @@ func main() {
 	formRepo := repository.NewFormRepository(database.WriteDB)
 	formService := service.NewFormService(formRepo, standardRepo)
 	formHandler := handler.NewFormHandler(formService)
+
+	docFieldService := service.NewDocumentFieldService(docFieldRepo, formRepo)
+
+	// 6. Setup Services & Handlers
+	standardService := service.NewStandardService(
+		standardRepo, paddleOCR, storageEngine,
+		stagingStorage, uploadTaskRepo, uploadQueue,
+		docFieldService,
+	)
+	standardHandler := handler.NewStandardHandler(standardService)
 
 	// 7. Setup Workers
 	retryPolicy := worker.NewRetryPolicy(

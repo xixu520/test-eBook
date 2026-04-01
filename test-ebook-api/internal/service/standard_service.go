@@ -24,6 +24,7 @@ type StandardService struct {
 	staging    *storage.StagingStorage
 	uploadRepo *repository.UploadTaskRepository
 	uploadQueue *queue.Queue
+	fieldService *DocumentFieldService
 }
 
 func NewStandardService(
@@ -33,14 +34,16 @@ func NewStandardService(
 	staging *storage.StagingStorage,
 	uploadRepo *repository.UploadTaskRepository,
 	uploadQueue *queue.Queue,
+	fieldService *DocumentFieldService,
 ) *StandardService {
 	return &StandardService{
-		repo:        repo,
-		ocrClient:   ocrClient,
-		storage:     stor,
-		staging:     staging,
-		uploadRepo:  uploadRepo,
-		uploadQueue: uploadQueue,
+		repo:         repo,
+		ocrClient:    ocrClient,
+		storage:      stor,
+		staging:      staging,
+		uploadRepo:   uploadRepo,
+		uploadQueue:  uploadQueue,
+		fieldService: fieldService,
 	}
 }
 
@@ -119,7 +122,7 @@ func (s *StandardService) DeleteCategory(id uint) error {
 
 // --- File Logic ---
 
-func (s *StandardService) UploadFile(title, number, year, version, publisher, implementationDate, implStatus string, categoryID uint, fileReader io.Reader, fileName string, fileSize int64) (*model.StandardFile, string, error) {
+func (s *StandardService) UploadFile(title, number, year, version, publisher, implementationDate, implStatus string, categoryID uint, dynamicFields map[uint]string, fileReader io.Reader, fileName string, fileSize int64) (*model.StandardFile, string, error) {
 	// 1. Verify Category
 	_, err := s.repo.FindCategoryByID(categoryID)
 	if err != nil {
@@ -155,6 +158,21 @@ func (s *StandardService) UploadFile(title, number, year, version, publisher, im
 		// 回滚：删除 staging 文件
 		s.staging.Remove(stagingPath)
 		return nil, "", err
+	}
+
+	// 3.1 保存动态属性
+	if len(dynamicFields) > 0 {
+		var fieldValues []model.DocumentFieldValue
+		for fieldID, val := range dynamicFields {
+			fieldValues = append(fieldValues, model.DocumentFieldValue{
+				DocumentID: standardFile.ID,
+				FieldID:    fieldID,
+				Value:      val,
+			})
+		}
+		if err := s.fieldService.SaveFieldValues(standardFile.ID, fieldValues); err != nil {
+			log.Printf("[Upload] 保存动态属性失败: %v", err)
+		}
 	}
 
 	// 4. 创建上传同步任务
@@ -330,23 +348,21 @@ func (s *StandardService) ProcessFile(fileID uint, taskID string) {
 	s.repo.UpdateTask(task)
 }
 
-func (s *StandardService) SearchFiles(categoryID uint, year, keyword, publisher, implStatus string, page, pageSize int) ([]model.StandardFile, int64, error) {
+func (s *StandardService) SearchFiles(categoryID uint, year, keyword, publisher, implStatus string, dynamicFilters map[uint]string, page, pageSize int) ([]model.StandardFile, int64, error) {
 	if page <= 0 { page = 1 }
 	if pageSize <= 0 { pageSize = 10 }
-	return s.repo.ListFiles(categoryID, year, keyword, publisher, implStatus, page, pageSize)
+	return s.repo.ListFiles(categoryID, year, keyword, publisher, implStatus, dynamicFilters, page, pageSize)
 }
 
-func (s *StandardService) UpdateFile(id uint, title, number, version, publisher, implementationDate, implStatus string, categoryID uint, status int, verifyStatus string) error {
+func (s *StandardService) UpdateFile(id uint, title string, categoryID uint, status int, verifyStatus string, dynamicFields []model.DocumentFieldValue) error {
 	updates := map[string]interface{}{
-		"title":                 title,
-		"number":                number,
-		"version":               version,
-		"publisher":             publisher,
-		"implementation_date":   implementationDate,
-		"implementation_status": implStatus,
-		"category_id":           categoryID,
-		"status":                status,
-		"verify_status":         verifyStatus,
+		"title":       title,
+		"category_id": categoryID,
+		"status":      status,
+	}
+
+	if verifyStatus != "" {
+		updates["verify_status"] = verifyStatus
 	}
 
 	if categoryID > 0 {
@@ -356,11 +372,29 @@ func (s *StandardService) UpdateFile(id uint, title, number, version, publisher,
 		}
 	}
 
-	return s.repo.UpdateFileFields(id, updates)
+	if err := s.repo.UpdateFileFields(id, updates); err != nil {
+		return err
+	}
+
+	// 更新动态属性
+	return s.fieldService.SaveFieldValues(id, dynamicFields)
+}
+
+func (s *StandardService) SaveDocumentFields(docID uint, values []model.DocumentFieldValue) error {
+	return s.fieldService.SaveFieldValues(docID, values)
 }
 
 func (s *StandardService) GetFileDetail(id uint) (*model.StandardFile, error) {
 	return s.repo.FindFileByID(id)
+}
+
+func (s *StandardService) GetFileDetailWithFields(id uint) (*model.StandardFile, []model.DocumentFieldValue, error) {
+	file, err := s.repo.FindFileByID(id)
+	if err != nil {
+		return nil, nil, err
+	}
+	fields, err := s.fieldService.GetFieldValues(id)
+	return file, fields, err
 }
 
 func (s *StandardService) DeleteFile(id uint) error {

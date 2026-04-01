@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"test-ebook-api/internal/model"
 	"test-ebook-api/internal/pkg"
 	"test-ebook-api/internal/service"
 
@@ -184,6 +186,7 @@ func (h *StandardHandler) UploadFile(c *gin.Context) {
 	publisher := c.PostForm("publisher")
 	implDate := c.PostForm("implementation_date")
 	implStatus := c.PostForm("implementation_status")
+	dynamicFieldsStr := c.PostForm("dynamic_fields") // 获取动态字段 JSON
 
 	if title == "" || catIDStr == "" {
 		pkg.Error(c, http.StatusBadRequest, 400, "标题和分类不能为空")
@@ -204,11 +207,13 @@ func (h *StandardHandler) UploadFile(c *gin.Context) {
 	}
 	defer f.Close()
 
-	fileModel, taskID, err := h.svc.UploadFile(title, number, year, version, publisher, implDate, implStatus, uint(catID), f, file.Filename, file.Size)
-	if err != nil {
-		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
-		return
+	// 解析动态字段
+	dynamicFields := make(map[uint]string)
+	if dynamicFieldsStr != "" {
+		_ = json.Unmarshal([]byte(dynamicFieldsStr), &dynamicFields)
 	}
+
+	fileModel, taskID, err := h.svc.UploadFile(title, number, year, version, publisher, implDate, implStatus, uint(catID), dynamicFields, f, file.Filename, file.Size)
 
 	pkg.Success(c, gin.H{
 		"document": fileModel,
@@ -225,7 +230,21 @@ func (h *StandardHandler) ListFiles(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
-	files, total, err := h.svc.SearchFiles(uint(catID), year, keyword, publisher, implStatus, page, pageSize)
+	// 解析动态属性过滤: filter[1]=value
+	dynamicFilters := make(map[uint]string)
+	queries := c.Request.URL.Query()
+	for k, v := range queries {
+		if len(v) > 0 && v[0] != "" {
+			if len(k) > 7 && k[:7] == "filter[" && k[len(k)-1] == ']' {
+				fieldID, _ := strconv.Atoi(k[7 : len(k)-1])
+				if fieldID > 0 {
+					dynamicFilters[uint(fieldID)] = v[0]
+				}
+			}
+		}
+	}
+
+	files, total, err := h.svc.SearchFiles(uint(catID), year, keyword, publisher, implStatus, dynamicFilters, page, pageSize)
 	if err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
@@ -244,12 +263,58 @@ func (h *StandardHandler) GetFileDetail(c *gin.Context) {
 		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
 		return
 	}
-	file, err := h.svc.GetFileDetail(uint(id))
+	file, fields, err := h.svc.GetFileDetailWithFields(uint(id))
 	if err != nil {
 		pkg.Error(c, http.StatusNotFound, 404, "文件不存在")
 		return
 	}
-	pkg.Success(c, file)
+	pkg.Success(c, gin.H{
+		"document":     file,
+		"field_values": fields,
+	})
+}
+
+func (h *StandardHandler) GetDocumentFields(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
+		return
+	}
+	_, fv, err := h.svc.GetFileDetailWithFields(uint(id))
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, fv)
+}
+
+func (h *StandardHandler) SaveDocumentFields(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
+		return
+	}
+	var input []struct {
+		FieldID uint   `json:"field_id"`
+		Value   string `json:"value"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
+		return
+	}
+	var dynFields []model.DocumentFieldValue
+	for _, df := range input {
+		dynFields = append(dynFields, model.DocumentFieldValue{
+			DocumentID: uint(id),
+			FieldID:    df.FieldID,
+			Value:      df.Value,
+		})
+	}
+	if err := h.svc.SaveDocumentFields(uint(id), dynFields); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
 }
 
 func (h *StandardHandler) UpdateFile(c *gin.Context) {
@@ -269,6 +334,10 @@ func (h *StandardHandler) UpdateFile(c *gin.Context) {
 		CategoryID           uint   `json:"category_id"`
 		Status               int    `json:"status"`
 		VerifyStatus         string `json:"verify_status"`
+		DynamicFields        []struct {
+			FieldID uint   `json:"field_id"`
+			Value   string `json:"value"`
+		} `json:"dynamic_fields"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -276,7 +345,16 @@ func (h *StandardHandler) UpdateFile(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.UpdateFile(uint(id), input.Title, input.Number, input.Version, input.Publisher, input.ImplementationDate, input.ImplementationStatus, input.CategoryID, input.Status, input.VerifyStatus); err != nil {
+	var dynFields []model.DocumentFieldValue
+	for _, df := range input.DynamicFields {
+		dynFields = append(dynFields, model.DocumentFieldValue{
+			DocumentID: uint(id),
+			FieldID:    df.FieldID,
+			Value:      df.Value,
+		})
+	}
+
+	if err := h.svc.UpdateFile(uint(id), input.Title, input.CategoryID, input.Status, input.VerifyStatus, dynFields); err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
 	}

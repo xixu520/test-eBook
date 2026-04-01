@@ -12,9 +12,21 @@
           </div>
           
           <div class="header-actions">
+            <!-- 分类选择器 -->
+            <el-tree-select
+              v-model="searchCategoryID"
+              :data="categories"
+              placeholder="选择分类查看动态列"
+              clearable
+              check-strictly
+              node-key="ID"
+              :props="{ label: 'name', value: 'ID' }"
+              class="filter-category"
+              @change="handleCategoryChange"
+            />
             <el-input
               v-model="searchKeyword"
-              placeholder="搜索标准号或名称"
+              placeholder="搜索标题"
               :prefix-icon="Search"
               clearable
               class="search-input"
@@ -28,6 +40,40 @@
         </div>
       </template>
 
+      <!-- 动态筛选栏 -->
+      <div v-if="filterFields.length > 0" class="dynamic-filter-bar">
+        <div v-for="field in filterFields" :key="field.ID" class="filter-item">
+          <span class="filter-label">{{ field.label }}：</span>
+          <el-input 
+            v-if="field.field_type === 'input' || field.field_type === 'number'"
+            v-model="dynamicFilters[field.ID!]"
+            size="small"
+            placeholder="全文过滤"
+            clearable
+            @change="handleSearch"
+          />
+          <el-select 
+            v-else-if="field.field_type === 'select'"
+            v-model="dynamicFilters[field.ID!]"
+            size="small"
+            placeholder="全选"
+            clearable
+            @change="handleSearch"
+          >
+            <el-option v-for="opt in (field.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+          </el-select>
+          <el-date-picker
+            v-else-if="field.field_type === 'date'"
+            v-model="dynamicFilters[field.ID!]"
+            type="date"
+            size="small"
+            value-format="YYYY-MM-DD"
+            @change="handleSearch"
+          />
+        </div>
+        <el-button link :icon="Refresh" @click="resetFilters">重置筛选</el-button>
+      </div>
+
       <!-- 文档列表表格 -->
       <el-table
         v-loading="loading"
@@ -38,12 +84,7 @@
       >
         <el-table-column type="selection" width="55" align="center" />
         
-        <el-table-column prop="number" label="标准号" width="200" sortable>
-          <template #default="{ row }">
-            <span class="number-text">{{ row.number }}</span>
-          </template>
-        </el-table-column>
-        
+        <!-- 固有必选列 -->
         <el-table-column prop="title" label="文档名称" min-width="280" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="title-cell">
@@ -52,8 +93,18 @@
             </div>
           </template>
         </el-table-column>
-        
-        <el-table-column label="所属分类" width="160" show-overflow-tooltip>
+
+        <!-- 动态扩展列 -->
+        <template v-for="col in displayColumns" :key="col.ID">
+          <el-table-column :prop="col.field_key" :label="col.label" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ getDynamicFieldValue(row, col.ID!) }}
+            </template>
+          </el-table-column>
+        </template>
+
+        <!-- 固有元数据列 -->
+        <el-table-column label="所属分类" width="140" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag size="small" type="info" effect="plain" round>
               {{ getCategoryName(row.category_id) }}
@@ -155,72 +206,61 @@
         width="650px"
         destroy-on-close
       >
-        <el-form :model="editForm" :rules="editRules" ref="editFormRef" label-width="100px" label-position="top">
+        <el-form :model="editForm" ref="editFormRef" label-width="100px" label-position="top">
           <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="文档名称" prop="title">
-                <el-input v-model="editForm.title" placeholder="请输入文档名称" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="标准号" prop="number">
-                <el-input v-model="editForm.number" placeholder="请输入标准号" />
+            <el-col :span="24">
+              <el-form-item label="文档名称" required>
+                <el-input v-model="editForm.title" placeholder="主要标题" />
               </el-form-item>
             </el-col>
             
             <el-col :span="12">
-              <el-form-item label="版本" prop="version">
-                <el-input v-model="editForm.version" placeholder="请输入版本号" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="所属分类" prop="category_id">
+              <el-form-item label="所属分类" required>
                 <el-tree-select
                   v-model="editForm.category_id"
                   :data="categories"
-                  placeholder="请选择所属分类"
+                  placeholder="所属分类"
                   clearable
                   check-strictly
                   node-key="ID"
                   :props="{ label: 'name', value: 'ID' }"
                   style="width: 100%"
+                  @change="handleEditCategoryChange"
                 />
               </el-form-item>
             </el-col>
 
+            <!-- 动态编辑字段 -->
+            <template v-for="f in editFields" :key="f.ID">
+              <el-col :span="12">
+                <el-form-item :label="f.label" :required="f.is_required">
+                   <el-date-picker
+                    v-if="f.field_type === 'date'"
+                    v-model="editForm.dynamic_fields[f.ID!]"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    style="width: 100%"
+                  />
+                  <el-select 
+                    v-else-if="f.field_type === 'select'"
+                    v-model="editForm.dynamic_fields[f.ID!]"
+                    style="width: 100%"
+                  >
+                    <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+                  </el-select>
+                  <el-input-number 
+                    v-else-if="f.field_type === 'number'"
+                    v-model="editForm.dynamic_fields[f.ID!]"
+                    style="width: 100%"
+                  />
+                  <el-input v-else v-model="editForm.dynamic_fields[f.ID!]" />
+                </el-form-item>
+              </el-col>
+            </template>
+            
             <el-col :span="12">
-              <el-form-item label="发布机构" prop="publisher">
-                <el-select v-model="editForm.publisher" placeholder="请选择发布机构" clearable style="width: 100%">
-                  <el-option label="住房和城乡建设部" value="住房和城乡建设部" />
-                  <el-option label="国家市场监督管理总局" value="国家市场监督管理总局" />
-                  <el-option label="中国建筑工业出版社" value="中国建筑工业出版社" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="实施日期" prop="implementation_date">
-                <el-date-picker
-                  v-model="editForm.implementation_date"
-                  type="date"
-                  placeholder="选择实施日期"
-                  value-format="YYYY-MM-DD"
-                  style="width: 100%"
-                />
-              </el-form-item>
-            </el-col>
-
-            <el-col :span="12">
-              <el-form-item label="实施状态" prop="implementation_status">
-                <el-select v-model="editForm.implementation_status" placeholder="请选择状态" clearable style="width: 100%">
-                  <el-option label="现行" value="current" />
-                  <el-option label="废止" value="obsolete" />
-                  <el-option label="即将实施" value="upcoming" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="核验状态" prop="verify_status">
-                <el-select v-model="editForm.verify_status" placeholder="请选择核验状态" clearable style="width: 100%">
+              <el-form-item label="核验状态">
+                <el-select v-model="editForm.verify_status" placeholder="核验状态" clearable style="width: 100%">
                   <el-option label="待核验" value="pending" />
                   <el-option label="核对通过" value="pass" />
                   <el-option label="需复核" value="retry" />
@@ -228,9 +268,9 @@
               </el-form-item>
             </el-col>
 
-            <el-col :span="24">
-              <el-form-item label="OCR 解析状态" prop="status">
-                <el-radio-group v-model="editForm.status">
+            <el-col :span="12">
+              <el-form-item label="解析结果(OCR)">
+                <el-radio-group v-model="editForm.status" size="small">
                   <el-radio-button :label="0">解析中</el-radio-button>
                   <el-radio-button :label="1">解析完成</el-radio-button>
                   <el-radio-button :label="2">解析失败</el-radio-button>
@@ -278,6 +318,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { Search, Plus, Delete, Timer, View, Refresh, Grid, Document, Edit } from '@element-plus/icons-vue'
 import { getDocuments, deleteDocument, updateDocument, type Document as IDocument, getTaskStatus, retryOCR, retrySync } from '@/api/document'
 import { getCategories } from '@/api/category'
+import { getForms, type Form as IForm, type FormField } from '@/api/form'
 import type { Category } from '@/api/category'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import UploadDialog from '@/components/document/UploadDialog.vue'
@@ -285,10 +326,14 @@ import UploadDialog from '@/components/document/UploadDialog.vue'
 const loading = ref(false)
 const documentList = ref<IDocument[]>([])
 const searchKeyword = ref('')
+const searchCategoryID = ref<number | undefined>()
+const dynamicFilters = reactive<Record<number, string>>({})
+const forms = ref<IForm[]>([])
+const displayColumns = ref<FormField[]>([])
+const filterFields = ref<FormField[]>([])
+
 const selectedIds = ref<number[]>([])
 const categories = ref<Category[]>([])
-
-// 扁平化分类字典（提高查找速度）
 const categoryMap = ref<Record<number, string>>({})
 
 const pagination = reactive({
@@ -297,42 +342,57 @@ const pagination = reactive({
   total: 0
 })
 
-// --- 上传状态 ---
 const uploadVisible = ref(false)
 
-// --- 编辑表单 ---
+// 编辑相关
 const editFormVisible = ref(false)
 const editFormLoading = ref(false)
-const editFormRef = ref<any>(null)
+const editFields = ref<FormField[]>([])
 const editForm = reactive({
   id: 0,
   title: '',
-  number: '',
-  version: '',
-  publisher: '',
-  implementation_date: '',
-  implementation_status: '',
   category_id: undefined as number | undefined,
+  dynamic_fields: {} as Record<number, string>,
   status: 0,
   verify_status: 'pending'
 })
+const editFormRef = ref<any>(null)
 
-const editRules = {
-  title: [{ required: true, message: '请输入文档名称', trigger: 'blur' }]
-}
-
-const handleEdit = (row: IDocument) => {
+const handleEdit = async (row: IDocument) => {
   editForm.id = row.id
   editForm.title = row.title
-  editForm.number = row.number || ''
-  editForm.version = row.version || ''
-  editForm.publisher = row.publisher || ''
-  editForm.implementation_date = row.implementation_date || ''
-  editForm.implementation_status = row.implementation_status || ''
-  editForm.category_id = row.category_id || undefined
-  editForm.status = row.status || 0
+  editForm.category_id = row.category_id
+  editForm.status = row.status
   editForm.verify_status = row.verify_status || 'pending'
+  
+  // 处理动态字段
+  editForm.dynamic_fields = {}
+  if (row.field_values) {
+    row.field_values.forEach(fv => {
+      editForm.dynamic_fields[fv.field_id] = fv.value
+    })
+  }
+  
+  await updateEditFields(row.category_id)
   editFormVisible.value = true
+}
+
+const updateEditFields = async (catID: number) => {
+  if (forms.value.length === 0) {
+    const res = await getForms()
+    forms.value = res as any
+  }
+  const cat = findCategory(categories.value, catID)
+  if (cat && cat.form_id) {
+    const f = forms.value.find(form => form.ID === cat.form_id)
+    editFields.value = f?.fields || []
+  } else {
+    editFields.value = []
+  }
+}
+
+const handleEditCategoryChange = (val: number) => {
+  updateEditFields(val)
 }
 
 const submitEdit = async () => {
@@ -341,12 +401,19 @@ const submitEdit = async () => {
     if (!valid) return
     editFormLoading.value = true
     try {
-      await updateDocument(editForm.id, editForm)
-      ElMessage.success('文档属性已更新')
+      // 构造提交数据
+      const payload = {
+        ...editForm,
+        dynamic_fields: Object.keys(editForm.dynamic_fields).map(key => ({
+          field_id: Number(key),
+          value: editForm.dynamic_fields[Number(key)]
+        }))
+      }
+      await updateDocument(editForm.id, payload)
+      ElMessage.success('文档已更新')
       editFormVisible.value = false
       loadData()
     } catch (e) {
-      // 错误已统一处理
     } finally {
       editFormLoading.value = false
     }
@@ -378,6 +445,55 @@ const loadCategories = async () => {
   } catch (error) {
     console.error('获取分类失败', error)
   }
+}
+
+const handleCategoryChange = async (catID?: number) => {
+  if (forms.value.length === 0) {
+    const res = await getForms()
+    forms.value = res as any
+  }
+
+  if (!catID) {
+    displayColumns.value = []
+    filterFields.value = []
+    handleSearch()
+    return
+  }
+
+  const cat = findCategory(categories.value, catID)
+  if (cat && cat.form_id) {
+    const f = forms.value.find(form => form.ID === cat.form_id)
+    if (f) {
+      displayColumns.value = f.fields.filter(field => field.show_in_list)
+      filterFields.value = f.fields.filter(field => field.show_in_filter)
+    }
+  } else {
+    displayColumns.value = []
+    filterFields.value = []
+  }
+  handleSearch()
+}
+
+const findCategory = (tree: any[], id: number): any => {
+  for (const node of tree) {
+    if (node.ID === id) return node
+    if (node.children?.length) {
+      const found = findCategory(node.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const getDynamicFieldValue = (row: IDocument, fieldID: number) => {
+  if (!row.field_values) return '-'
+  const fv = row.field_values.find(v => v.field_id === fieldID)
+  return fv ? fv.value : '-'
+}
+
+const resetFilters = () => {
+  Object.keys(dynamicFilters).forEach(k => delete dynamicFilters[Number(k)])
+  handleSearch()
 }
 
 const getCategoryName = (categoryId: number): string => {
@@ -461,15 +577,23 @@ const getVerifyStatusText = (status: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res: any = await getDocuments({
+    const params: any = {
       page: pagination.page,
       page_size: pagination.size,
-      keyword: searchKeyword.value
+      keyword: searchKeyword.value,
+      category_id: searchCategoryID.value
+    }
+    // 动态属性过滤
+    Object.keys(dynamicFilters).forEach(fieldID => {
+      if (dynamicFilters[Number(fieldID)]) {
+        params[`filter[${fieldID}]`] = dynamicFilters[Number(fieldID)]
+      }
     })
+
+    const res: any = await getDocuments(params)
     documentList.value = res.list || []
     pagination.total = res.total || 0
   } catch (error) {
-    // 错误在 request.ts 中已被处理
   } finally {
     loading.value = false
   }

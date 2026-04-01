@@ -100,7 +100,7 @@ func (r *StandardRepository) CreateFile(file *model.StandardFile) error {
 	return r.db.Create(file).Error
 }
 
-func (r *StandardRepository) ListFiles(categoryID uint, year, keyword, publisher, implStatus string, page, pageSize int) ([]model.StandardFile, int64, error) {
+func (r *StandardRepository) ListFiles(categoryID uint, year, keyword, publisher, implStatus string, dynamicFilters map[uint]string, page, pageSize int) ([]model.StandardFile, int64, error) {
 	var files []model.StandardFile
 	var total int64
 
@@ -120,6 +120,21 @@ func (r *StandardRepository) ListFiles(categoryID uint, year, keyword, publisher
 	}
 	if implStatus != "" {
 		db = db.Where("implementation_status = ?", implStatus)
+	}
+
+	// 动态属性过滤逻辑
+	if len(dynamicFilters) > 0 {
+		for fieldID, value := range dynamicFilters {
+			if value == "" {
+				continue
+			}
+			// 子查询寻找匹配该属性值的文档 ID
+			subQuery := r.db.Model(&model.DocumentFieldValue{}).
+				Select("document_id").
+				Where("field_id = ?", fieldID).
+				Where("value LIKE ?", "%"+value+"%")
+			db = db.Where("id IN (?)", subQuery)
+		}
 	}
 
 	err := db.Count(&total).Error

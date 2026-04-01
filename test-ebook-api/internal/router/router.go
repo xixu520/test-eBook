@@ -61,6 +61,8 @@ func InitRouter(
 				documents.PUT("/:id", standardHandler.UpdateFile)
 				documents.GET("/:id/download", standardHandler.DownloadFile)
 				documents.GET("/:id/preview", standardHandler.PreviewFile)
+				documents.GET("/:id/fields", standardHandler.GetDocumentFields)
+				documents.PUT("/:id/fields", standardHandler.SaveDocumentFields)
 				documents.DELETE("/:id", standardHandler.DeleteFile)
 				documents.POST("/:id/ocr/retry", standardHandler.RetryOCR)
 				documents.POST("/:id/retry-sync", standardHandler.RetrySync)

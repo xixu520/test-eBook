@@ -1,16 +1,5 @@
 import request from '@/utils/request'
 
-export interface DocumentQuery {
-  page?: number
-  page_size?: number
-  keyword?: string
-  category_id?: number
-  publisher?: string
-  implementation_status?: string
-  start_date?: string
-  end_date?: string
-}
-
 export interface Document {
   id: number
   number: string // standard_no -> number
@@ -28,6 +17,26 @@ export interface Document {
   verify_status?: string
   sync_status?: string
   created_at: string
+  field_values?: Array<{
+    field_id: number
+    value: string
+    field?: {
+      label: string
+      field_key: string
+    }
+  }>
+}
+
+export interface DocumentQuery {
+  page?: number
+  page_size?: number
+  keyword?: string
+  category_id?: number
+  publisher?: string
+  implementation_status?: string
+  start_date?: string
+  end_date?: string
+  [key: string]: any // 支持 filter[id] 这种动态 key
 }
 
 export function getDocuments(params: DocumentQuery) {

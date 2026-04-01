@@ -8,6 +8,9 @@ export interface FormField {
   is_required: boolean
   options?: string // JSON 数组字符串
   order: number
+  show_in_list: boolean
+  show_in_filter: boolean
+  default_value: string
 }
 
 export interface Form {

@@ -71,9 +71,32 @@
                   </el-select>
                 </template>
               </el-table-column>
-              <el-table-column prop="is_required" label="必填项" width="80" align="center">
+              <el-table-column prop="is_required" label="必填" width="60" align="center">
                 <template #default="{ row }">
                   <el-checkbox v-model="row.is_required" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="show_in_list" label="列表展示" width="85" align="center">
+                <template #default="{ row }">
+                  <el-checkbox v-model="row.show_in_list" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="show_in_filter" label="过滤筛选" width="85" align="center">
+                <template #default="{ row }">
+                  <el-checkbox v-model="row.show_in_filter" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="default_value" label="默认值" width="150">
+                <template #default="{ row }">
+                  <el-date-picker 
+                    v-if="row.field_type === 'date'"
+                    v-model="row.default_value"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    placeholder="默认日期"
+                    size="small"
+                  />
+                  <el-input v-else v-model="row.default_value" placeholder="默认填充值" size="small" />
                 </template>
               </el-table-column>
               <el-table-column label="扩展配置 (Options)" min-width="200">
@@ -213,7 +236,10 @@ const addField = () => {
     field_key: '',
     field_type: 'input',
     is_required: false,
-    order: fieldList.value.length * 10
+    order: fieldList.value.length * 10,
+    show_in_list: true,
+    show_in_filter: false,
+    default_value: ''
   })
 }
 

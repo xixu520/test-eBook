@@ -7,67 +7,50 @@
     class="upload-dialog"
   >
     <el-form :model="form" label-width="100px" class="upload-form">
-      <el-form-item label="文件标题" required>
-        <el-input 
-          v-model="form.title" 
-          placeholder="请输入文档标题（名称）" 
-          clearable 
-        />
+      <el-form-item label="文档标题" required>
+        <el-input v-model="form.title" placeholder="请输入文档标题" clearable />
       </el-form-item>
 
-      <el-form-item label="标准号" required>
-        <el-input 
-          v-model="form.number" 
-          placeholder="请输入标准号" 
-          clearable 
-          class="mono-font"
-        />
-      </el-form-item>
-
-      <el-form-item label="发布年份" required>
-        <el-input 
-          v-model="form.year" 
-          placeholder="请输入年份（如 2024）" 
-          clearable 
-          class="mono-font"
-        />
-      </el-form-item>
-
-      <el-form-item label="具体版本">
-        <el-input 
-          v-model="form.version" 
-          placeholder="请输入版本或修订号" 
-          clearable 
-          class="mono-font"
-        />
-      </el-form-item>
-
-      <el-form-item label="发布机构">
-        <el-input 
-          v-model="form.publisher" 
-          placeholder="请输入发布机构" 
-          clearable 
-        />
-      </el-form-item>
-
-      <el-form-item label="实施日期">
-        <el-date-picker
-          v-model="form.implementation_date"
-          type="date"
-          placeholder="选择日期"
-          format="YYYY-MM-DD"
-          value-format="YYYY-MM-DD"
-          style="width: 100%"
-        />
-      </el-form-item>
-
-      <el-form-item label="实施状态">
-        <el-select v-model="form.implementation_status" placeholder="请选择实施状态" style="width: 100%">
-          <el-option label="现行" value="current" />
-          <el-option label="废止" value="obsolete" />
-          <el-option label="即将实施" value="upcoming" />
-        </el-select>
-      </el-form-item>
+      <!-- 动态属性字段渲染 -->
+      <template v-for="field in currentFormFields" :key="field.ID">
+        <el-form-item :label="field.label" :required="field.is_required">
+          <!-- 文本输入 -->
+          <el-input 
+            v-if="field.field_type === 'input'" 
+            v-model="form.dynamic_fields[field.ID!]" 
+            :placeholder="'请输入' + field.label" 
+            clearable 
+          />
+          <!-- 数字输入 -->
+          <el-input-number 
+            v-else-if="field.field_type === 'number'" 
+            v-model="form.dynamic_fields[field.ID!]" 
+            style="width: 100%"
+          />
+          <!-- 日期选择 -->
+          <el-date-picker
+            v-else-if="field.field_type === 'date'"
+            v-model="form.dynamic_fields[field.ID!]"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+          <!-- 下拉选择 -->
+          <el-select 
+            v-else-if="field.field_type === 'select'" 
+            v-model="form.dynamic_fields[field.ID!]" 
+            style="width: 100%"
+          >
+            <el-option 
+              v-for="opt in (field.options || '').split(',')" 
+              :key="opt" 
+              :label="opt" 
+              :value="opt" 
+            />
+          </el-select>
+        </el-form-item>
+      </template>
 
       <el-form-item label="所属分类" required>
         <el-tree-select
@@ -129,9 +112,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { uploadFile } from '@/api/upload'
+import { getForms, type Form, type FormField } from '@/api/form'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps({
@@ -148,20 +132,64 @@ const visible = computed({
 
 const form = reactive({
   title: '',
-  number: '',
-  year: '',
-  version: '',
-  publisher: '',
-  implementation_date: '',
-  implementation_status: 'current',
-  category_id: ''
+  category_id: '' as string | number,
+  dynamic_fields: {} as Record<number, string>
 })
+
+const currentFormFields = ref<FormField[]>([])
+const allForms = ref<Form[]>([])
 
 const fileList = ref<any[]>([])
 const uploadingFiles = ref<any[]>([])
 const isUploading = ref(false)
 
-const canUpload = computed(() => form.title && form.number && form.year && form.category_id && fileList.value.length > 0)
+const canUpload = computed(() => {
+  if (!form.title || !form.category_id || fileList.value.length === 0) return false
+  // 检查必填动态字段
+  for (const field of currentFormFields.value) {
+    if (field.is_required && !form.dynamic_fields[field.ID!]) return false
+  }
+  return true
+})
+
+// 分类变化监听
+watch(() => form.category_id, async (newVal) => {
+  if (!newVal) {
+    currentFormFields.value = []
+    return
+  }
+  
+  if (allForms.value.length === 0) {
+    const res = await getForms()
+    allForms.value = res as any
+  }
+  
+  const category = findCategory(props.categoryTree, Number(newVal))
+  if (category && category.form_id) {
+    const targetForm = allForms.value.find(f => f.ID === category.form_id)
+    if (targetForm) {
+      currentFormFields.value = targetForm.fields || []
+      // 初始化默认值
+      form.dynamic_fields = {}
+      currentFormFields.value.forEach(f => {
+        form.dynamic_fields[f.ID!] = f.default_value || ''
+      })
+    }
+  } else {
+    currentFormFields.value = []
+  }
+})
+
+const findCategory = (tree: any[], id: number): any => {
+  for (const node of tree) {
+    if (node.ID === id) return node
+    if (node.Children?.length) {
+      const found = findCategory(node.Children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
 
 const handleFileChange = (_file: any, files: any[]) => {
   fileList.value = files
@@ -178,13 +206,9 @@ const handleClose = () => {
 
 const resetForm = () => {
   form.title = ''
-  form.number = ''
-  form.year = ''
-  form.version = ''
-  form.publisher = ''
-  form.implementation_date = ''
-  form.implementation_status = 'current'
   form.category_id = ''
+  form.dynamic_fields = {}
+  currentFormFields.value = []
   fileList.value = []
   uploadingFiles.value = []
 }
@@ -201,13 +225,22 @@ const startUpload = async () => {
     const formData = new FormData()
     formData.append('file', file.raw)
     formData.append('title', form.title)
-    formData.append('number', form.number)
-    formData.append('year', form.year)
-    formData.append('version', form.version)
-    formData.append('publisher', form.publisher)
-    formData.append('implementation_date', form.implementation_date)
-    formData.append('implementation_status', form.implementation_status)
-    formData.append('category_id', form.category_id)
+    formData.append('category_id', String(form.category_id))
+    
+    // 动态字段
+    formData.append('dynamic_fields', JSON.stringify(form.dynamic_fields))
+
+    // 映射兼容旧字段（可选，便于后端迁移期稳定）
+    const getFieldVal = (key: string) => {
+      const field = currentFormFields.value.find(f => f.field_key === key)
+      return field ? form.dynamic_fields[field.ID!] : ''
+    }
+    formData.append('number', getFieldVal('number'))
+    formData.append('year', getFieldVal('year'))
+    formData.append('version', getFieldVal('version'))
+    formData.append('publisher', getFieldVal('publisher'))
+    formData.append('implementation_date', getFieldVal('implementation_date'))
+    formData.append('implementation_status', getFieldVal('implementation_status'))
 
     return uploadFile(formData, (progressEvent) => {
       const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
