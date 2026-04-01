@@ -65,3 +65,18 @@ func (s *CSTCloudStorage) TestConnection() error {
 	}
 	return nil
 }
+
+// ListObjects 列举 bucket 中所有对象的键名（用于孤儿文件扫描）
+func (s *CSTCloudStorage) ListObjects() ([]string, error) {
+	var objects []string
+	objectCh := s.client.ListObjects(context.Background(), s.bucketName, minio.ListObjectsOptions{
+		Recursive: true,
+	})
+	for obj := range objectCh {
+		if obj.Err != nil {
+			return objects, fmt.Errorf("列举对象失败: %v", obj.Err)
+		}
+		objects = append(objects, obj.Key)
+	}
+	return objects, nil
+}

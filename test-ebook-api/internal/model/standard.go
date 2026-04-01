@@ -12,6 +12,8 @@ type Category struct {
 	Name     string     `json:"name" gorm:"type:varchar(100);not null"`
 	ParentID uint       `json:"parent_id" gorm:"index"`
 	Order    int        `json:"order" gorm:"default:0"`
+	FormID   uint       `json:"form_id" gorm:"index"`
+	Form     *Form      `json:"form" gorm:"foreignKey:FormID"`
 	Children []Category `json:"children" gorm:"foreignKey:ParentID"`
 	DocCount int        `json:"doc_count" gorm:"-"`
 }
@@ -34,7 +36,8 @@ type StandardFile struct {
 	OCRContent           string   `json:"ocr_content" gorm:"type:text"`           // 全文索引预留
 	Tags                 string   `json:"tags" gorm:"type:varchar(500)"`          // 逗号分隔的标签
 	Publisher            string   `json:"publisher" gorm:"type:varchar(255)"`     // 发布机构
-	IssueDate            string   `json:"issue_date" gorm:"type:varchar(20)"`     // 发布日期
+	ImplementationDate   string   `json:"implementation_date" gorm:"type:varchar(20)"` // 实施日期
 	ImplementationStatus string   `json:"implementation_status" gorm:"type:varchar(50);default:'current'"` // 实施状态(current, obsolete, upcoming)
 	VerifyStatus         string   `json:"verify_status" gorm:"type:varchar(50);default:'pending'"` // 核验状态(pending, pass, retry)
+	SyncStatus           string   `json:"sync_status" gorm:"type:varchar(20);default:'synced'"`    // 同步状态(synced, pending_sync, syncing, sync_failed)
 }

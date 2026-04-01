@@ -182,7 +182,7 @@ func (h *StandardHandler) UploadFile(c *gin.Context) {
 	version := c.PostForm("version")
 	catIDStr := c.PostForm("category_id")
 	publisher := c.PostForm("publisher")
-	issueDate := c.PostForm("issue_date")
+	implDate := c.PostForm("implementation_date")
 	implStatus := c.PostForm("implementation_status")
 
 	if title == "" || catIDStr == "" {
@@ -204,7 +204,7 @@ func (h *StandardHandler) UploadFile(c *gin.Context) {
 	}
 	defer f.Close()
 
-	fileModel, taskID, err := h.svc.UploadFile(title, number, year, version, publisher, issueDate, implStatus, uint(catID), f, file.Filename, file.Size)
+	fileModel, taskID, err := h.svc.UploadFile(title, number, year, version, publisher, implDate, implStatus, uint(catID), f, file.Filename, file.Size)
 	if err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
@@ -264,9 +264,11 @@ func (h *StandardHandler) UpdateFile(c *gin.Context) {
 		Number               string `json:"number"`
 		Version              string `json:"version"`
 		Publisher            string `json:"publisher"`
-		IssueDate            string `json:"issue_date"`
+		ImplementationDate   string `json:"implementation_date"`
 		ImplementationStatus string `json:"implementation_status"`
 		CategoryID           uint   `json:"category_id"`
+		Status               int    `json:"status"`
+		VerifyStatus         string `json:"verify_status"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -274,7 +276,7 @@ func (h *StandardHandler) UpdateFile(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.UpdateFile(uint(id), input.Title, input.Number, input.Version, input.Publisher, input.IssueDate, input.ImplementationStatus, input.CategoryID); err != nil {
+	if err := h.svc.UpdateFile(uint(id), input.Title, input.Number, input.Version, input.Publisher, input.ImplementationDate, input.ImplementationStatus, input.CategoryID, input.Status, input.VerifyStatus); err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
 	}
@@ -315,7 +317,7 @@ func (h *StandardHandler) DownloadFile(c *gin.Context) {
 		return
 	}
 	// Trigger file download
-	stream, err := h.svc.GetFileStream(file.FilePath)
+	stream, err := h.svc.GetFileStream(file.FilePath, file.SyncStatus)
 	if err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, "文件打开失败: "+err.Error())
 		return
@@ -339,7 +341,7 @@ func (h *StandardHandler) PreviewFile(c *gin.Context) {
 		return
 	}
 	// Return file inline for preview (e.g. PDF)
-	stream, err := h.svc.GetFileStream(file.FilePath)
+	stream, err := h.svc.GetFileStream(file.FilePath, file.SyncStatus)
 	if err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, "文件打开失败: "+err.Error())
 		return
@@ -349,4 +351,28 @@ func (h *StandardHandler) PreviewFile(c *gin.Context) {
 	c.Header("Content-Disposition", "inline; filename*=utf-8''"+url.PathEscape(file.Title))
 	c.Header("Content-Type", "application/pdf")
 	io.Copy(c.Writer, stream)
+}
+
+// --- Sync Task Handlers ---
+
+func (h *StandardHandler) RetrySync(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的文档ID")
+		return
+	}
+	if err := h.svc.RetrySync(uint(id)); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
+func (h *StandardHandler) GetUploadTasks(c *gin.Context) {
+	tasks, err := h.svc.GetUploadTasks(100)
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, tasks)
 }

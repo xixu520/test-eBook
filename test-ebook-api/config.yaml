@@ -31,6 +31,12 @@ storage:
   type: local
   local_path: uploads
   max_size_mb: 50
+  staging_path: uploads/staging
+  sync_concurrency: 3
+  retry_max: 5
+  retry_initial_delay_sec: 5
+  orphan_clean_interval_hours: 6
+  orphan_stale_hours: 24
   aliyun_endpoint: ""
   aliyun_access_key_id: ""
   aliyun_access_key_secret: ""

@@ -9,6 +9,7 @@ import (
 	"test-ebook-api/internal/config"
 	"test-ebook-api/internal/model"
 	"test-ebook-api/internal/pkg/ocr"
+	"test-ebook-api/internal/pkg/queue"
 	"test-ebook-api/internal/pkg/storage"
 	"test-ebook-api/internal/repository"
 	"time"
@@ -17,16 +18,29 @@ import (
 )
 
 type StandardService struct {
-	repo      *repository.StandardRepository
-	ocrClient ocr.Client
-	storage   storage.Storage
+	repo       *repository.StandardRepository
+	ocrClient  ocr.Client
+	storage    storage.Storage
+	staging    *storage.StagingStorage
+	uploadRepo *repository.UploadTaskRepository
+	uploadQueue *queue.Queue
 }
 
-func NewStandardService(repo *repository.StandardRepository, ocrClient ocr.Client, storage storage.Storage) *StandardService {
+func NewStandardService(
+	repo *repository.StandardRepository,
+	ocrClient ocr.Client,
+	stor storage.Storage,
+	staging *storage.StagingStorage,
+	uploadRepo *repository.UploadTaskRepository,
+	uploadQueue *queue.Queue,
+) *StandardService {
 	return &StandardService{
-		repo:      repo,
-		ocrClient: ocrClient,
-		storage:   storage,
+		repo:        repo,
+		ocrClient:   ocrClient,
+		storage:     stor,
+		staging:     staging,
+		uploadRepo:  uploadRepo,
+		uploadQueue: uploadQueue,
 	}
 }
 
@@ -105,7 +119,7 @@ func (s *StandardService) DeleteCategory(id uint) error {
 
 // --- File Logic ---
 
-func (s *StandardService) UploadFile(title, number, year, version, publisher, issueDate, implStatus string, categoryID uint, fileReader io.Reader, fileName string, fileSize int64) (*model.StandardFile, string, error) {
+func (s *StandardService) UploadFile(title, number, year, version, publisher, implementationDate, implStatus string, categoryID uint, fileReader io.Reader, fileName string, fileSize int64) (*model.StandardFile, string, error) {
 	// 1. Verify Category
 	_, err := s.repo.FindCategoryByID(categoryID)
 	if err != nil {
@@ -114,44 +128,70 @@ func (s *StandardService) UploadFile(title, number, year, version, publisher, is
 
 	ext := filepath.Ext(fileName)
 	newFileName := uuid.New().String() + ext
-	
-	savePath, err := s.storage.Save(newFileName, fileReader)
+
+	// 2. 保存到 staging 暂存目录（所有存储模式统一流程）
+	stagingPath, err := s.staging.Save(newFileName, fileReader)
 	if err != nil {
-		return nil, "", err
+		return nil, "", errors.New("保存文件到暂存区失败: " + err.Error())
 	}
 
-	// 3. Save to DB
+	// 3. Save to DB（sync_status 标记为 pending_sync）
 	standardFile := &model.StandardFile{
 		Title:                title,
 		Number:               number,
 		Year:                 year,
 		Version:              version,
 		Publisher:            publisher,
-		IssueDate:            issueDate,
+		ImplementationDate:   implementationDate,
 		ImplementationStatus: implStatus,
 		CategoryID:           categoryID,
-		FilePath:             savePath,
+		FilePath:             stagingPath, // 暂时指向 staging 路径
 		FileSize:             fileSize,
 		Status:               0,
+		SyncStatus:           "pending_sync",
 	}
 
 	if err := s.repo.CreateFile(standardFile); err != nil {
+		// 回滚：删除 staging 文件
+		s.staging.Remove(stagingPath)
 		return nil, "", err
 	}
 
-	// 4. Create OCR Task
+	// 4. 创建上传同步任务
+	retryMax := config.GlobalConfig.Storage.RetryMax
+	if retryMax <= 0 {
+		retryMax = 5
+	}
+	uploadTask := &model.UploadTask{
+		DocumentID: standardFile.ID,
+		LocalPath:  stagingPath,
+		Status:     "pending",
+		MaxRetry:   retryMax,
+	}
+	if err := s.uploadRepo.Create(uploadTask); err != nil {
+		return nil, "", err
+	}
+
+	// 5. 推入同步队列（异步处理）
+	queueTask := queue.Task{
+		Type:       queue.TaskUploadSync,
+		DocumentID: standardFile.ID,
+		UploadID:   uploadTask.ID,
+	}
+	if err := s.uploadQueue.Push(queueTask); err != nil {
+		log.Printf("[Upload] 推入同步队列失败（将在下次启动时恢复）: %v", err)
+	}
+
+	// 6. 创建 OCR 任务记录（等同步完成后由 SyncWorker 触发实际 OCR）
 	taskID := uuid.New().String()
-	task := &model.OCRTask{
+	ocrTask := &model.OCRTask{
 		TaskID:     taskID,
 		DocumentID: standardFile.ID,
 		Status:     "pending",
 	}
-	if err := s.repo.CreateTask(task); err != nil {
-		return nil, "", err
+	if err := s.repo.CreateTask(ocrTask); err != nil {
+		log.Printf("[Upload] 创建 OCR 任务记录失败: %v", err)
 	}
-
-	// 5. Async processing (OCR Real)
-	go s.ProcessFile(standardFile.ID, taskID)
 
 	return standardFile, taskID, nil
 }
@@ -296,10 +336,17 @@ func (s *StandardService) SearchFiles(categoryID uint, year, keyword, publisher,
 	return s.repo.ListFiles(categoryID, year, keyword, publisher, implStatus, page, pageSize)
 }
 
-func (s *StandardService) UpdateFile(id uint, title, number, version, publisher, issueDate, implStatus string, categoryID uint) error {
-	file, err := s.repo.FindFileByID(id)
-	if err != nil {
-		return errors.New("文件不存在")
+func (s *StandardService) UpdateFile(id uint, title, number, version, publisher, implementationDate, implStatus string, categoryID uint, status int, verifyStatus string) error {
+	updates := map[string]interface{}{
+		"title":                 title,
+		"number":                number,
+		"version":               version,
+		"publisher":             publisher,
+		"implementation_date":   implementationDate,
+		"implementation_status": implStatus,
+		"category_id":           categoryID,
+		"status":                status,
+		"verify_status":         verifyStatus,
 	}
 
 	if categoryID > 0 {
@@ -307,20 +354,9 @@ func (s *StandardService) UpdateFile(id uint, title, number, version, publisher,
 		if err != nil {
 			return errors.New("分类不存在")
 		}
-		file.CategoryID = categoryID
-	} else {
-		file.CategoryID = 0 // Allow unclassified
 	}
 
-	file.Title = title
-	file.Number = number
-	file.Version = version
-	file.Publisher = publisher
-	file.IssueDate = issueDate
-	file.ImplementationStatus = implStatus
-	file.Category = model.Category{} // Clear association so Gorm uses the updated CategoryID
-
-	return s.repo.UpdateFile(file)
+	return s.repo.UpdateFileFields(id, updates)
 }
 
 func (s *StandardService) GetFileDetail(id uint) (*model.StandardFile, error) {
@@ -373,8 +409,60 @@ func (s *StandardService) GetFileHistory(number string) ([]model.StandardFile, e
 	return s.repo.GetFileHistory(number)
 }
 
-func (s *StandardService) GetFileStream(path string) (io.ReadCloser, error) {
-	return s.storage.Get(path)
+func (s *StandardService) GetFileStream(filePath string, syncStatus string) (io.ReadCloser, error) {
+	// 如果文件还在 staging 中（未同步完成），从 staging 读取
+	if syncStatus == "pending_sync" || syncStatus == "syncing" {
+		if s.staging.Exists(filePath) {
+			return s.staging.Get(filePath)
+		}
+	}
+	// 已同步或本地存储，从最终存储读取
+	return s.storage.Get(filePath)
+}
+
+// RetrySync 重试同步失败的文件
+func (s *StandardService) RetrySync(docID uint) error {
+	uploadTask, err := s.uploadRepo.GetByDocumentID(docID)
+	if err != nil {
+		return errors.New("未找到该文档的上传任务")
+	}
+	if uploadTask.Status != "failed" {
+		return errors.New("该任务不是失败状态，无需重试")
+	}
+
+	// 检查暂存文件是否还存在
+	if !s.staging.Exists(uploadTask.LocalPath) {
+		return errors.New("暂存文件已丢失，无法重试，请重新上传")
+	}
+
+	// 重置任务状态
+	uploadTask.Status = "pending"
+	uploadTask.Error = ""
+	uploadTask.RetryCount = 0
+	s.uploadRepo.Update(uploadTask)
+
+	// 重置文档同步状态
+	file, err := s.repo.FindFileByID(docID)
+	if err == nil {
+		file.SyncStatus = "pending_sync"
+		s.repo.UpdateFile(file)
+	}
+
+	// 推入队列
+	queueTask := queue.Task{
+		Type:       queue.TaskUploadSync,
+		DocumentID: docID,
+		UploadID:   uploadTask.ID,
+	}
+	return s.uploadQueue.Push(queueTask)
+}
+
+// GetUploadTasks 获取上传任务列表（管理员用）
+func (s *StandardService) GetUploadTasks(limit int) ([]model.UploadTask, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	return s.uploadRepo.GetAllTasks(limit)
 }
 
 func (s *StandardService) GetRecycleBin() ([]model.StandardFile, error) {

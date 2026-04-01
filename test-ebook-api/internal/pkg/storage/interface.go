@@ -14,3 +14,11 @@ type Storage interface {
 	// TestConnection 测试存储连通性
 	TestConnection() error
 }
+
+// ObjectLister 用于云端孤儿文件扫描
+// 仅云存储后端实现此接口
+type ObjectLister interface {
+	// ListObjects 列出存储中的所有对象键名
+	ListObjects() ([]string, error)
+}
+

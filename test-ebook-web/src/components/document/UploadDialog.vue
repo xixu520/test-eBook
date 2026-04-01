@@ -50,9 +50,9 @@
         />
       </el-form-item>
 
-      <el-form-item label="发布日期">
+      <el-form-item label="实施日期">
         <el-date-picker
-          v-model="form.issue_date"
+          v-model="form.implementation_date"
           type="date"
           placeholder="选择日期"
           format="YYYY-MM-DD"
@@ -152,7 +152,7 @@ const form = reactive({
   year: '',
   version: '',
   publisher: '',
-  issue_date: '',
+  implementation_date: '',
   implementation_status: 'current',
   category_id: ''
 })
@@ -182,7 +182,7 @@ const resetForm = () => {
   form.year = ''
   form.version = ''
   form.publisher = ''
-  form.issue_date = ''
+  form.implementation_date = ''
   form.implementation_status = 'current'
   form.category_id = ''
   fileList.value = []
@@ -205,7 +205,7 @@ const startUpload = async () => {
     formData.append('year', form.year)
     formData.append('version', form.version)
     formData.append('publisher', form.publisher)
-    formData.append('issue_date', form.issue_date)
+    formData.append('implementation_date', form.implementation_date)
     formData.append('implementation_status', form.implementation_status)
     formData.append('category_id', form.category_id)
 

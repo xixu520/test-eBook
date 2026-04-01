@@ -45,6 +45,12 @@ func (r *StandardRepository) CountFilesByCategory(categoryID uint) (int64, error
 	return count, err
 }
 
+func (r *StandardRepository) CountCategoriesByFormID(formID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Category{}).Where("form_id = ?", formID).Count(&count).Error
+	return count, err
+}
+
 func (r *StandardRepository) GetCategoryTree() ([]model.Category, error) {
 	var results []model.Category
 	err := r.db.Preload("Children", func(db *gorm.DB) *gorm.DB {
@@ -136,6 +142,10 @@ func (r *StandardRepository) UpdateFile(file *model.StandardFile) error {
 	return r.db.Save(file).Error
 }
 
+func (r *StandardRepository) UpdateFileFields(id uint, fields map[string]interface{}) error {
+	return r.db.Model(&model.StandardFile{}).Where("id = ?", id).Updates(fields).Error
+}
+
 func (r *StandardRepository) DeleteFile(id uint) error {
 	return r.db.Delete(&model.StandardFile{}, id).Error
 }
@@ -224,3 +234,25 @@ func (r *StandardRepository) GetTasks(limit int) ([]model.OCRTask, error) {
 	err := r.db.Order("created_at DESC").Limit(limit).Find(&tasks).Error
 	return tasks, err
 }
+
+// --- Orphan Cleaner Operations ---
+
+// GetExpiredSoftDeletedFiles 获取超过指定时间的软删除文件
+func (r *StandardRepository) GetExpiredSoftDeletedFiles(cutoff time.Time) ([]model.StandardFile, error) {
+	var files []model.StandardFile
+	err := r.db.Unscoped().Where("deleted_at IS NOT NULL AND deleted_at < ?", cutoff).Find(&files).Error
+	return files, err
+}
+
+// HardDeleteFileByID 按 ID 硬删除单个文件记录
+func (r *StandardRepository) HardDeleteFileByID(id uint) error {
+	return r.db.Unscoped().Delete(&model.StandardFile{}, id).Error
+}
+
+// GetAllFilePaths 获取所有活跃文档的文件路径（用于云端孤儿比对）
+func (r *StandardRepository) GetAllFilePaths() ([]string, error) {
+	var paths []string
+	err := r.db.Model(&model.StandardFile{}).Pluck("file_path", &paths).Error
+	return paths, err
+}
+

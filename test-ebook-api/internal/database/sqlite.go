@@ -36,6 +36,11 @@ func InitDB() error {
 	sqlDB, _ := WriteDB.DB()
 	sqlDB.SetMaxOpenConns(1)
 
+	// Explicitly set WAL mode and other pragmas for safety and performance
+	sqlDB.Exec("PRAGMA journal_mode=WAL;")
+	sqlDB.Exec("PRAGMA synchronous=NORMAL;")
+	sqlDB.Exec("PRAGMA busy_timeout=5000;")
+
 	// Read DB - Connection pool
 	readDSN := "file:" + cfg.Path + "?mode=ro&_journal_mode=WAL"
 	ReadDB, err = gorm.Open(sqlite.Open(readDSN), &gorm.Config{
@@ -47,6 +52,9 @@ func InitDB() error {
 	} else {
 		sqlDB2, _ := ReadDB.DB()
 		sqlDB2.SetMaxOpenConns(cfg.MaxReadConns)
+		sqlDB2.Exec("PRAGMA journal_mode=WAL;")
+		sqlDB2.Exec("PRAGMA synchronous=NORMAL;")
+		sqlDB2.Exec("PRAGMA busy_timeout=5000;")
 	}
 
 	return nil

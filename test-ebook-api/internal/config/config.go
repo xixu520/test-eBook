@@ -41,6 +41,12 @@ type StorageConfig struct {
 	Type                  string `mapstructure:"type"` // local, aliyun_oss, tencent_cos, cstcloud
 	LocalPath             string `mapstructure:"local_path"`
 	MaxSizeMB             int    `mapstructure:"max_size_mb"`
+	StagingPath           string `mapstructure:"staging_path"`
+	SyncConcurrency       int    `mapstructure:"sync_concurrency"`
+	RetryMax              int    `mapstructure:"retry_max"`
+	RetryInitialDelaySec  int    `mapstructure:"retry_initial_delay_sec"`
+	OrphanCleanIntervalH  int    `mapstructure:"orphan_clean_interval_hours"`
+	OrphanStaleHours      int    `mapstructure:"orphan_stale_hours"`
 	AliyunEndpoint        string `mapstructure:"aliyun_endpoint"`
 	AliyunAccessKeyID     string `mapstructure:"aliyun_access_key_id"`
 	AliyunAccessKeySecret string `mapstructure:"aliyun_access_key_secret"`

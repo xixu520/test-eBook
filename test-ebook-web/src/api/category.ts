@@ -7,6 +7,7 @@ export interface Category {
   parent_id: number
   order: number
   doc_count: number
+  form_id?: number
   children: Category[]
   CreatedAt?: string
   UpdatedAt?: string
@@ -17,6 +18,7 @@ export interface CategoryForm {
   name: string
   parent_id: number
   order: number
+  form_id?: number
 }
 
 /** 获取分类树 */

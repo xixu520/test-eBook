@@ -12,5 +12,8 @@ func AutoMigrate() error {
 		&model.OCRTask{},
 		&model.SystemSetting{},
 		&model.AuditLog{},
+		&model.UploadTask{},
+		&model.Form{},
+		&model.FormField{},
 	)
 }

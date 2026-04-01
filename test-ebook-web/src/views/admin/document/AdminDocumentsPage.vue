@@ -85,6 +85,32 @@
             </el-tag>
           </template>
         </el-table-column>
+
+        <el-table-column prop="sync_status" label="同步状态" width="120" align="center">
+          <template #default="{ row }">
+            <el-tag 
+              :type="getSyncStatusType(row.sync_status)" 
+              size="small" 
+              effect="light"
+              round
+            >
+              {{ getSyncStatusText(row.sync_status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="verify_status" label="核验状态" width="120" align="center">
+          <template #default="{ row }">
+            <el-tag 
+              :type="getVerifyTagType(row.verify_status)" 
+              size="small" 
+              effect="plain"
+              round
+            >
+              {{ getVerifyStatusText(row.verify_status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         
         <el-table-column label="操作" width="240" align="center" fixed="right">
           <template #default="{ row }">
@@ -101,6 +127,10 @@
               
               <el-button v-if="row.status === 2" link type="warning" size="small" :icon="Refresh" @click="handleRetry(row)">
                 重试 OCR
+              </el-button>
+
+              <el-button v-if="row.sync_status === 'sync_failed'" link type="warning" size="small" :icon="Refresh" @click="handleRetrySync(row)">
+                重试同步
               </el-button>
               
               <el-button link type="danger" size="small" :icon="Delete" @click="handleDelete(row)">
@@ -122,54 +152,92 @@
       <el-dialog
         v-model="editFormVisible"
         title="编辑文档属性"
-        width="500px"
+        width="650px"
         destroy-on-close
       >
-        <el-form :model="editForm" :rules="editRules" ref="editFormRef" label-width="100px" style="padding-right: 20px;">
-          <el-form-item label="文档名称" prop="title">
-            <el-input v-model="editForm.title" placeholder="请输入文档名称" />
-          </el-form-item>
-          <el-form-item label="标准号" prop="number">
-            <el-input v-model="editForm.number" placeholder="请输入标准号" />
-          </el-form-item>
-          <el-form-item label="版本" prop="version">
-            <el-input v-model="editForm.version" placeholder="请输入版本号" />
-          </el-form-item>
-          <el-form-item label="发布机构" prop="publisher">
-            <el-select v-model="editForm.publisher" placeholder="请选择发布机构" clearable style="width: 100%">
-              <el-option label="住房和城乡建设部" value="住房和城乡建设部" />
-              <el-option label="国家市场监督管理总局" value="国家市场监督管理总局" />
-              <el-option label="中国建筑工业出版社" value="中国建筑工业出版社" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="发布日期" prop="issue_date">
-            <el-date-picker
-              v-model="editForm.issue_date"
-              type="date"
-              placeholder="选择发布日期"
-              value-format="YYYY-MM-DD"
-              style="width: 100%"
-            />
-          </el-form-item>
-          <el-form-item label="实施状态" prop="implementation_status">
-            <el-select v-model="editForm.implementation_status" placeholder="请选择状态" clearable style="width: 100%">
-              <el-option label="现行" value="current" />
-              <el-option label="废止" value="obsolete" />
-              <el-option label="即将实施" value="upcoming" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="所属分类" prop="category_id">
-            <el-tree-select
-              v-model="editForm.category_id"
-              :data="categories"
-              placeholder="请选择所属分类"
-              clearable
-              check-strictly
-              node-key="ID"
-              :props="{ label: 'name', value: 'ID' }"
-              style="width: 100%"
-            />
-          </el-form-item>
+        <el-form :model="editForm" :rules="editRules" ref="editFormRef" label-width="100px" label-position="top">
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="文档名称" prop="title">
+                <el-input v-model="editForm.title" placeholder="请输入文档名称" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="标准号" prop="number">
+                <el-input v-model="editForm.number" placeholder="请输入标准号" />
+              </el-form-item>
+            </el-col>
+            
+            <el-col :span="12">
+              <el-form-item label="版本" prop="version">
+                <el-input v-model="editForm.version" placeholder="请输入版本号" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="所属分类" prop="category_id">
+                <el-tree-select
+                  v-model="editForm.category_id"
+                  :data="categories"
+                  placeholder="请选择所属分类"
+                  clearable
+                  check-strictly
+                  node-key="ID"
+                  :props="{ label: 'name', value: 'ID' }"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-col>
+
+            <el-col :span="12">
+              <el-form-item label="发布机构" prop="publisher">
+                <el-select v-model="editForm.publisher" placeholder="请选择发布机构" clearable style="width: 100%">
+                  <el-option label="住房和城乡建设部" value="住房和城乡建设部" />
+                  <el-option label="国家市场监督管理总局" value="国家市场监督管理总局" />
+                  <el-option label="中国建筑工业出版社" value="中国建筑工业出版社" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="实施日期" prop="implementation_date">
+                <el-date-picker
+                  v-model="editForm.implementation_date"
+                  type="date"
+                  placeholder="选择实施日期"
+                  value-format="YYYY-MM-DD"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-col>
+
+            <el-col :span="12">
+              <el-form-item label="实施状态" prop="implementation_status">
+                <el-select v-model="editForm.implementation_status" placeholder="请选择状态" clearable style="width: 100%">
+                  <el-option label="现行" value="current" />
+                  <el-option label="废止" value="obsolete" />
+                  <el-option label="即将实施" value="upcoming" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="核验状态" prop="verify_status">
+                <el-select v-model="editForm.verify_status" placeholder="请选择核验状态" clearable style="width: 100%">
+                  <el-option label="待核验" value="pending" />
+                  <el-option label="核对通过" value="pass" />
+                  <el-option label="需复核" value="retry" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+
+            <el-col :span="24">
+              <el-form-item label="OCR 解析状态" prop="status">
+                <el-radio-group v-model="editForm.status">
+                  <el-radio-button :label="0">解析中</el-radio-button>
+                  <el-radio-button :label="1">解析完成</el-radio-button>
+                  <el-radio-button :label="2">解析失败</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+          </el-row>
         </el-form>
         <template #footer>
           <div class="dialog-footer">
@@ -196,16 +264,23 @@
       </div>
     </el-card>
 
+    <!-- 文档上传弹窗 (统一化) -->
+    <UploadDialog
+      v-model="uploadVisible"
+      :category-tree="categories"
+      @success="loadData"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { Search, Plus, Delete, Timer, View, Refresh, Grid, Document, Edit } from '@element-plus/icons-vue'
-import { getDocuments, uploadFile, deleteDocument, updateDocument, type Document as IDocument, getTaskStatus, retryOCR } from '@/api/document'
+import { getDocuments, deleteDocument, updateDocument, type Document as IDocument, getTaskStatus, retryOCR, retrySync } from '@/api/document'
 import { getCategories } from '@/api/category'
 import type { Category } from '@/api/category'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import UploadDialog from '@/components/document/UploadDialog.vue'
 
 const loading = ref(false)
 const documentList = ref<IDocument[]>([])
@@ -222,6 +297,9 @@ const pagination = reactive({
   total: 0
 })
 
+// --- 上传状态 ---
+const uploadVisible = ref(false)
+
 // --- 编辑表单 ---
 const editFormVisible = ref(false)
 const editFormLoading = ref(false)
@@ -232,9 +310,11 @@ const editForm = reactive({
   number: '',
   version: '',
   publisher: '',
-  issue_date: '',
+  implementation_date: '',
   implementation_status: '',
-  category_id: undefined as number | undefined
+  category_id: undefined as number | undefined,
+  status: 0,
+  verify_status: 'pending'
 })
 
 const editRules = {
@@ -247,9 +327,11 @@ const handleEdit = (row: IDocument) => {
   editForm.number = row.number || ''
   editForm.version = row.version || ''
   editForm.publisher = row.publisher || ''
-  editForm.issue_date = row.issue_date || ''
+  editForm.implementation_date = row.implementation_date || ''
   editForm.implementation_status = row.implementation_status || ''
   editForm.category_id = row.category_id || undefined
+  editForm.status = row.status || 0
+  editForm.verify_status = row.verify_status || 'pending'
   editFormVisible.value = true
 }
 
@@ -344,6 +426,36 @@ const getStatusText = (status: number) => {
   }
 }
 
+const getSyncStatusType = (status: string) => {
+  switch (status) {
+    case 'synced': return 'success'
+    case 'pending_sync': return 'primary'
+    case 'syncing': return 'warning'
+    case 'sync_failed': return 'danger'
+    default: return 'info'
+  }
+}
+
+const getSyncStatusText = (status: string) => {
+  switch (status) {
+    case 'synced': return '已同步'
+    case 'pending_sync': return '同步中'
+    case 'syncing': return '正在同步'
+    case 'sync_failed': return '同步失败'
+    default: return '已同步'
+  }
+}
+
+const getVerifyTagType = (status: string) => {
+  const types: Record<string, string> = { pass: 'success', pending: 'warning', retry: 'danger' }
+  return status ? types[status] || 'info' : 'warning'
+}
+
+const getVerifyStatusText = (status: string) => {
+  const map: Record<string, string> = { pending: '待核验', pass: '核对通过', retry: '需复核' }
+  return status ? map[status] || '待核验' : '待核验'
+}
+
 // --- 操作方法 ---
 
 const loadData = async () => {
@@ -373,34 +485,7 @@ const handleSelectionChange = (selection: IDocument[]) => {
 }
 
 const handleUpload = () => {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.pdf,.doc,.docx'
-  input.onchange = async (e: any) => {
-    const file = e.target.files[0]
-    if (!file) return
-
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('title', file.name.split('.')[0])
-    formData.append('number', 'NEW-' + Date.now()) // Temporary placeholder
-    formData.append('category_id', '1') // 默认分类，未来可优化为上传前选择
-
-    loading.value = true
-    try {
-      const res: any = await uploadFile(formData)
-      ElMessage.success('文档上传成功，正在进行结构化解析...')
-      loadData()
-      if (res.task_id) {
-        pollTaskStatus(res.task_id)
-      }
-    } catch (err) {
-      console.error(err)
-    } finally {
-      loading.value = false
-    }
-  }
-  input.click()
+  uploadVisible.value = true
 }
 
 const pollTaskStatus = (taskId: string) => {
@@ -430,6 +515,16 @@ const handleRetry = async (row: IDocument) => {
     if (res.task_id) {
       pollTaskStatus(res.task_id)
     }
+  } catch (error) {
+    // request.ts 已处理错误提示
+  }
+}
+
+const handleRetrySync = async (row: IDocument) => {
+  try {
+    await retrySync(row.id)
+    ElMessage.success('已重新提交同步任务')
+    loadData()
   } catch (error) {
     // request.ts 已处理错误提示
   }

@@ -7,6 +7,8 @@ export interface DocumentQuery {
   category_id?: number
   publisher?: string
   implementation_status?: string
+  start_date?: string
+  end_date?: string
 }
 
 export interface Document {
@@ -21,9 +23,10 @@ export interface Document {
   status: number // 0: processing, 1: processed, 2: failed
   ocr_content?: string
   publisher?: string
-  issue_date?: string
+  implementation_date?: string
   implementation_status?: string
   verify_status?: string
+  sync_status?: string
   created_at: string
 }
 
@@ -128,5 +131,21 @@ export function batchDeleteDocuments(document_ids: number[], empty_all = false) 
     url: '/recycle-bin/documents/batch-delete',
     method: 'post',
     data: { document_ids, empty_all }
+  })
+}
+
+// --- Sync Tasks ---
+
+export function retrySync(docId: number) {
+  return request({
+    url: `/documents/${docId}/retry-sync`,
+    method: 'post'
+  })
+}
+
+export function getUploadTasks() {
+  return request({
+    url: '/admin/upload-tasks',
+    method: 'get'
   })
 }

@@ -113,7 +113,7 @@
           {{ row.category?.name || '-' }}
         </template>
       </el-table-column>
-      <el-table-column prop="issue_date" label="发布日期" width="120" sortable class-name="mono-font" v-if="!isMobile" />
+      <el-table-column prop="implementation_date" label="实施日期" width="120" sortable class-name="mono-font" v-if="!isMobile" />
       <el-table-column prop="implementation_status" label="实施状态" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="getStatusTagType(row.implementation_status)" size="small">
@@ -206,7 +206,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="number" label="标准号" width="180" />
-        <el-table-column prop="issue_date" label="发布日期" width="120" />
+        <el-table-column prop="implementation_date" label="实施日期" width="120" />
         <el-table-column label="操作" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="handlePreview(row)">预览</el-button>
@@ -221,7 +221,7 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { 
   Search, RefreshLeft, Upload, Download, 
-  View, Timer, Setting, MoreFilled
+  View, Timer, MoreFilled
 } from '@element-plus/icons-vue'
 import { getDocuments, getDocumentHistory } from '@/api/document'
 import { useCategoryStore } from '@/stores/category'

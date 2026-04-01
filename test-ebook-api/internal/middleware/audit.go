@@ -14,8 +14,12 @@ import (
 func AuditMiddleware(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		method := c.Request.Method
-		// 只记录变更操作
-		if method != "POST" && method != "PUT" && method != "DELETE" {
+		// 允许 POST、PUT、DELETE
+		// 对于 GET 请求，只有特定的读取动作才被记录
+		isWrite := method == "POST" || method == "PUT" || method == "DELETE"
+		isRead := method == "GET" && (bytes.Contains([]byte(c.Request.URL.Path), []byte("/preview")) || bytes.Contains([]byte(c.Request.URL.Path), []byte("/download")))
+
+		if !isWrite && !isRead {
 			c.Next()
 			return
 		}
@@ -47,6 +51,9 @@ func AuditMiddleware(db *gorm.DB) gin.HandlerFunc {
 			userID, _ := userIDVal.(uint)
 			
 			action := mapActionName(method, c.Request.URL.Path)
+			if action == "UNKNOWN" {
+				return // 不记录未知或不关心的操作
+			}
 			
 			audit := &model.AuditLog{
 				UserID:   userID,
@@ -63,7 +70,8 @@ func AuditMiddleware(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// mapActionName 将请求方法和路径映射为前端期待的简写标签 (LOGIN/UPLOAD/DELETE/EDIT/VERIFY)
+// mapActionName 将请求方法和路径映射为前端期待的简写标签
+// 支持五种类型: LOGIN（登入）, UPLOAD（增）, READ（查）, EDIT（改）, DELETE（删）
 func mapActionName(method, path string) string {
 	pathBytes := []byte(path)
 	
@@ -73,15 +81,16 @@ func mapActionName(method, path string) string {
 	if bytes.Contains(pathBytes, []byte("/documents/upload")) {
 		return "UPLOAD"
 	}
-	if bytes.Contains(pathBytes, []byte("/documents") ) && method == "DELETE" {
+	if bytes.Contains(pathBytes, []byte("/documents")) && method == "DELETE" {
 		return "DELETE"
 	}
 	if (bytes.Contains(pathBytes, []byte("/documents")) || bytes.Contains(pathBytes, []byte("/categories"))) && method == "PUT" {
 		return "EDIT"
 	}
-	if bytes.Contains(pathBytes, []byte("/verify")) {
-		return "VERIFY"
+	if method == "GET" && (bytes.Contains(pathBytes, []byte("/preview")) || bytes.Contains(pathBytes, []byte("/download"))) {
+		return "READ"
 	}
 	
-	return method + " " + path
+	// 对于其他未命中上述规则的操作，返回 UNKNOWN 会被中间件忽略记录
+	return "UNKNOWN"
 }

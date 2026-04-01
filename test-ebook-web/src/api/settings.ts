@@ -97,3 +97,10 @@ export function testStorageConnection(storageSettings: any) {
 		}
 	})
 }
+
+export function orphanScan() {
+	return request({
+		url: '/settings/orphan-scan',
+		method: 'post'
+	})
+}

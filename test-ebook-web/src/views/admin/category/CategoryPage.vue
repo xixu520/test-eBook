@@ -10,7 +10,10 @@
               共 {{ totalCount }} 个分类
             </el-tag>
           </div>
-          <el-button type="primary" :icon="Plus" @click="handleAdd">添加分类</el-button>
+          <div class="header-actions">
+            <el-button :icon="Tickets" @click="drawerVisible = true">表单模板管理</el-button>
+            <el-button type="primary" :icon="Plus" @click="handleAdd">添加分类</el-button>
+          </div>
         </div>
       </template>
 
@@ -118,6 +121,12 @@
           <el-input-number v-model="form.order" :min="0" :max="9999" controls-position="right" />
           <span class="form-tip">数值越小越靠前</span>
         </el-form-item>
+
+        <el-form-item label="绑定表单" prop="form_id">
+          <el-select v-model="form.form_id" placeholder="选择关联表单模板" clearable style="width: 100%">
+             <el-option v-for="f in formOptions" :key="f.ID" :label="f.name" :value="f.ID" />
+          </el-select>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -125,26 +134,33 @@
         <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 表单管理抽屉 -->
+    <FormManagerDrawer v-model="drawerVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { Plus, Edit, Delete, Folder, FolderOpened, Grid } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Folder, FolderOpened, Grid, Tickets } from '@element-plus/icons-vue'
 import { getCategories, addCategory, updateCategory, deleteCategory } from '@/api/category'
 import type { Category, CategoryForm } from '@/api/category'
+import { getForms, type Form } from '@/api/form'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import FormManagerDrawer from './FormManagerDrawer.vue'
 
 // --- 状态 ---
 const categoryTree = ref<Category[]>([])
 const loading = ref(false)
+const drawerVisible = ref(false)
 const dialogVisible = ref(false)
 const dialogType = ref<'add' | 'edit'>('add')
 const submitting = ref(false)
 const formRef = ref<FormInstance>()
-const treeRef = ref()
 const editingId = ref<number | undefined>(undefined)
+
+const formOptions = ref<Form[]>([])
 
 const treeProps = {
   children: 'children',
@@ -154,7 +170,8 @@ const treeProps = {
 const form = ref<CategoryForm>({
   name: '',
   parent_id: 0,
-  order: 0
+  order: 0,
+  form_id: undefined
 })
 
 const rules: FormRules = {
@@ -202,10 +219,11 @@ onMounted(() => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getCategories()
-    categoryTree.value = res as Category[]
+    const [catRes, formRes] = await Promise.all([getCategories(), getForms()])
+    categoryTree.value = catRes as Category[]
+    formOptions.value = formRes as any
   } catch (error) {
-    console.error('加载分类数据失败:', error)
+    console.error('加载基础数据失败:', error)
   } finally {
     loading.value = false
   }
@@ -218,7 +236,8 @@ const handleAdd = () => {
   form.value = {
     name: '',
     parent_id: 0,
-    order: 0
+    order: 0,
+    form_id: undefined
   }
   dialogVisible.value = true
 }
@@ -229,7 +248,8 @@ const handleEdit = (row: Category) => {
   form.value = {
     name: row.name,
     parent_id: row.parent_id,
-    order: row.order
+    order: row.order,
+    form_id: row.form_id
   }
   dialogVisible.value = true
 }

@@ -7,11 +7,11 @@
           <el-form :inline="true" :model="filters" class="filter-form">
             <el-form-item label="操作类型">
               <el-select v-model="filters.action" placeholder="全部类型" clearable style="width: 150px" @change="loadData">
-                <el-option label="登录" value="LOGIN" />
-                <el-option label="上传" value="UPLOAD" />
-                <el-option label="删除" value="DELETE" />
-                <el-option label="编辑" value="EDIT" />
-                <el-option label="核验" value="VERIFY" />
+                <el-option label="登录 (LOGIN)" value="LOGIN" />
+                <el-option label="上传 (UPLOAD)" value="UPLOAD" />
+                <el-option label="查看 (READ)" value="READ" />
+                <el-option label="编辑 (EDIT)" value="EDIT" />
+                <el-option label="删除 (DELETE)" value="DELETE" />
               </el-select>
             </el-form-item>
             <el-form-item>
@@ -146,9 +146,9 @@ const showDetails = (text: string) => {
 const getActionType = (action: string) => {
   const map: any = {
     UPLOAD: 'primary',
-    DELETE: 'danger',
-    VERIFY: 'success',
+    READ: 'success',
     EDIT: 'warning',
+    DELETE: 'danger',
     LOGIN: 'info'
   }
   return map[action] || 'info'

@@ -12,7 +12,9 @@ import (
 	"test-ebook-api/internal/database"
 	"test-ebook-api/internal/handler"
 	"test-ebook-api/internal/pkg/ocr"
+	"test-ebook-api/internal/pkg/queue"
 	"test-ebook-api/internal/pkg/storage"
+	"test-ebook-api/internal/pkg/worker"
 	"test-ebook-api/internal/repository"
 	"test-ebook-api/internal/router"
 	"test-ebook-api/internal/service"
@@ -37,16 +39,32 @@ func main() {
 		log.Fatalf("Failed to auto migrate: %v", err)
 	}
 
-	// 4. Setup Dependencies
-	standardRepo := repository.NewStandardRepository(database.WriteDB)
-	paddleOCR := ocr.NewPaddleClient()
-
+	// 4. Setup Storage Infrastructure
 	storageEngine, err := storage.NewStorage(config.GlobalConfig.Storage)
 	if err != nil {
 		log.Fatalf("Failed to initialize storage: %v", err)
 	}
 
-	standardService := service.NewStandardService(standardRepo, paddleOCR, storageEngine)
+	stagingPath := config.GlobalConfig.Storage.StagingPath
+	if stagingPath == "" {
+		stagingPath = "uploads/staging"
+	}
+	stagingStorage := storage.NewStagingStorage(stagingPath)
+
+	// 5. Setup Queue & Repositories
+	uploadQueue := queue.NewQueue("upload_sync", 100)
+	ocrQueue := queue.NewQueue("ocr", 100)
+
+	standardRepo := repository.NewStandardRepository(database.WriteDB)
+	uploadTaskRepo := repository.NewUploadTaskRepository(database.WriteDB)
+
+	paddleOCR := ocr.NewPaddleClient()
+
+	// 6. Setup Services & Handlers
+	standardService := service.NewStandardService(
+		standardRepo, paddleOCR, storageEngine,
+		stagingStorage, uploadTaskRepo, uploadQueue,
+	)
 	standardHandler := handler.NewStandardHandler(standardService)
 
 	userRepo := repository.NewUserRepository(database.WriteDB)
@@ -58,7 +76,6 @@ func main() {
 
 	settingRepo := repository.NewSettingRepository(database.WriteDB)
 	settingService := service.NewSettingService(settingRepo)
-	settingHandler := handler.NewSettingHandler(settingService)
 
 	auditRepo := repository.NewAuditRepository(database.WriteDB)
 	auditService := service.NewAuditService(auditRepo)
@@ -67,13 +84,52 @@ func main() {
 	mockHandler := handler.NewMockHandler()
 	systemHandler := handler.NewSystemHandler()
 
+	formRepo := repository.NewFormRepository(database.WriteDB)
+	formService := service.NewFormService(formRepo, standardRepo)
+	formHandler := handler.NewFormHandler(formService)
 
-	// 5. Seed Initial Data
+	// 7. Setup Workers
+	retryPolicy := worker.NewRetryPolicy(
+		config.GlobalConfig.Storage.RetryMax,
+		config.GlobalConfig.Storage.RetryInitialDelaySec,
+	)
+
+	syncWorker := worker.NewSyncWorker(worker.SyncWorkerConfig{
+		UploadQueue: uploadQueue,
+		OCRQueue:    ocrQueue,
+		Staging:     stagingStorage,
+		Remote:      storageEngine,
+		Repo:        standardRepo,
+		UploadRepo:  uploadTaskRepo,
+		Concurrency: config.GlobalConfig.Storage.SyncConcurrency,
+		RetryPolicy: retryPolicy,
+		StorageType: config.GlobalConfig.Storage.Type,
+	})
+
+	orphanCleaner := worker.NewOrphanCleaner(worker.OrphanCleanerConfig{
+		Staging:     stagingStorage,
+		Remote:      storageEngine,
+		Repo:        standardRepo,
+		UploadRepo:  uploadTaskRepo,
+		StorageType: config.GlobalConfig.Storage.Type,
+		IntervalH:   config.GlobalConfig.Storage.OrphanCleanIntervalH,
+		StaleHours:  config.GlobalConfig.Storage.OrphanStaleHours,
+	})
+
+	// Setting handler needs orphanCleaner reference
+	settingHandler := handler.NewSettingHandler(settingService, orphanCleaner)
+
+	// 8. Seed Initial Data
 	if err := authService.SeedAdmin(); err != nil {
 		log.Printf("Warning: Failed to seed admin user: %v", err)
 	}
 
-	// 6. Setup Router
+	// 9. Start Workers
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	syncWorker.Start(workerCtx)
+	orphanCleaner.Start(workerCtx)
+
+	// 10. Setup Router
 	gin.SetMode(config.GlobalConfig.Server.Mode)
 	r := router.InitRouter(
 		authHandler,
@@ -83,6 +139,7 @@ func main() {
 		settingHandler,
 		auditHandler,
 		systemHandler,
+		formHandler,
 		database.WriteDB,
 	)
 
@@ -92,8 +149,6 @@ func main() {
 		Handler: r,
 	}
 
-	// Initializing the server in a goroutine so that
-	// it won't block the graceful shutdown handling below
 	go func() {
 		log.Printf("Server starting on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -101,17 +156,23 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// Wait for interrupt signal to gracefully shutdown
 	quit := make(chan os.Signal, 1)
-	// kill (no param) default send syscall.SIGTERM
-	// kill -2 is syscall.SIGINT
-	// kill -9 is syscall.SIGKILL but can't be caught, so don't need to add it
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
 
-	// The context is used to inform the server it has 5 seconds to finish
-	// the request it is currently handling
+	// Stop accepting new tasks
+	uploadQueue.Close()
+	ocrQueue.Close()
+
+	// Stop workers (waits for current tasks to complete)
+	workerCancel()
+	syncWorker.Stop()
+	orphanCleaner.Stop()
+	log.Println("Workers stopped")
+
+	// Shutdown HTTP server
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
@@ -129,3 +190,4 @@ func main() {
 
 	log.Println("Server exiting")
 }
+

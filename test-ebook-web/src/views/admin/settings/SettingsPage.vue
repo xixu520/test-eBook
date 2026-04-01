@@ -142,22 +142,61 @@
             <el-button type="success" plain @click="handleTestStorageConnection" :loading="testingStorage">测试存储连接</el-button>
             <el-button type="primary" @click="handleSave" :loading="saving">确认修改</el-button>
           </el-form-item>
+
+          <el-divider />
+          <el-form-item label="孤儿文件清理">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="color: var(--el-text-color-secondary); font-size: 13px;">
+                扫描并清理无主的暂存文件、过期软删除记录，以及云端存储中未被数据库引用的文件。
+              </div>
+              <el-button type="warning" plain @click="handleOrphanScan" :loading="scanningOrphans" :icon="Search">
+                扫描孤儿文件
+              </el-button>
+            </div>
+          </el-form-item>
         </el-form>
       </el-tab-pane>
 
     </el-tabs>
+
+    <!-- 孤儿扫描结果弹窗 -->
+    <el-dialog v-model="orphanResultVisible" title="孤儿文件扫描结果" width="600px">
+      <div v-if="orphanResult" class="orphan-result">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="清理暂存文件">{{ orphanResult.staging_cleaned }} 个</el-descriptions-item>
+          <el-descriptions-item label="清理过期记录">{{ orphanResult.expired_cleaned }} 个</el-descriptions-item>
+        </el-descriptions>
+        <div v-if="orphanResult.cloud_orphans && orphanResult.cloud_orphans.length > 0" style="margin-top: 16px;">
+          <h4>云端孤儿文件（{{ orphanResult.cloud_orphans.length }} 个）</h4>
+          <el-table :data="orphanResult.cloud_orphans.map((f: string) => ({ path: f }))" max-height="300" size="small">
+            <el-table-column prop="path" label="文件路径" show-overflow-tooltip />
+          </el-table>
+          <el-alert type="info" :closable="false" style="margin-top: 8px;">以上文件在云端存储中存在，但数据库中无对应记录。系统已记录审计日志，不会自动删除。</el-alert>
+        </div>
+        <div v-if="orphanResult.errors && orphanResult.errors.length > 0" style="margin-top: 16px;">
+          <el-alert v-for="(err, idx) in orphanResult.errors" :key="idx" :title="err" type="error" :closable="false" style="margin-bottom: 4px;" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="orphanResultVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getSettings, saveSettings, testOcrConnection, testStorageConnection } from '@/api/settings'
+import { Search } from '@element-plus/icons-vue'
+import { getSettings, saveSettings, testOcrConnection, testStorageConnection, orphanScan } from '@/api/settings'
 import { ElMessage } from 'element-plus'
 
 const activeTab = ref('ocr')
 const saving = ref(false)
 const testing = ref(false)
 const testingStorage = ref(false)
+const scanningOrphans = ref(false)
+const orphanResultVisible = ref(false)
+const orphanResult = ref<any>(null)
 
 const settings = reactive({
   ocr: {
@@ -253,6 +292,20 @@ const handleTestStorageConnection = async () => {
     // 错误处理在拦截器中
   } finally {
     testingStorage.value = false
+  }
+}
+
+const handleOrphanScan = async () => {
+  scanningOrphans.value = true
+  try {
+    const res: any = await orphanScan()
+    orphanResult.value = res
+    orphanResultVisible.value = true
+    ElMessage.success('孤儿文件扫描完成')
+  } catch (error) {
+    // 错误处理在拦截器中
+  } finally {
+    scanningOrphans.value = false
   }
 }
 

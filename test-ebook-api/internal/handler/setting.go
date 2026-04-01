@@ -4,17 +4,19 @@ import (
 	"net/http"
 	"test-ebook-api/internal/model"
 	"test-ebook-api/internal/pkg"
+	"test-ebook-api/internal/pkg/worker"
 	"test-ebook-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type SettingHandler struct {
-	svc *service.SettingService
+	svc           *service.SettingService
+	orphanCleaner *worker.OrphanCleaner
 }
 
-func NewSettingHandler(svc *service.SettingService) *SettingHandler {
-	return &SettingHandler{svc: svc}
+func NewSettingHandler(svc *service.SettingService, orphanCleaner *worker.OrphanCleaner) *SettingHandler {
+	return &SettingHandler{svc: svc, orphanCleaner: orphanCleaner}
 }
 
 func (h *SettingHandler) GetSettings(c *gin.Context) {
@@ -69,4 +71,14 @@ func (h *SettingHandler) TestStorage(c *gin.Context) {
 		return
 	}
 	pkg.Success(c, nil)
+}
+
+// OrphanScan 手动触发孤儿文件扫描（管理员功能）
+func (h *SettingHandler) OrphanScan(c *gin.Context) {
+	if h.orphanCleaner == nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, "孤儿清理器未初始化")
+		return
+	}
+	result := h.orphanCleaner.RunManualScan()
+	pkg.Success(c, result)
 }

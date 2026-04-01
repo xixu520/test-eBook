@@ -16,6 +16,7 @@ func InitRouter(
 	settingHandler *handler.SettingHandler,
 	auditHandler *handler.AuditHandler,
 	systemHandler *handler.SystemHandler,
+	formHandler *handler.FormHandler,
 	db *gorm.DB,
 ) *gin.Engine {
 	r := gin.Default()
@@ -62,6 +63,7 @@ func InitRouter(
 				documents.GET("/:id/preview", standardHandler.PreviewFile)
 				documents.DELETE("/:id", standardHandler.DeleteFile)
 				documents.POST("/:id/ocr/retry", standardHandler.RetryOCR)
+				documents.POST("/:id/retry-sync", standardHandler.RetrySync)
 			}
 
 			// Tasks
@@ -91,6 +93,17 @@ func InitRouter(
 				admin.PUT("/users/:id", userHandler.UpdateUser)
 				admin.PUT("/users/:id/password", userHandler.ResetPassword)
 				admin.DELETE("/users/:id", userHandler.DeleteUser)
+				admin.GET("/upload-tasks", standardHandler.GetUploadTasks)
+
+				// Forms Management
+				forms := admin.Group("/forms")
+				{
+					forms.GET("", formHandler.GetForms)
+					forms.POST("", formHandler.CreateForm)
+					forms.PUT("/:id", formHandler.UpdateForm)
+					forms.DELETE("/:id", formHandler.DeleteForm)
+					forms.POST("/:id/fields", formHandler.SaveFormFields)
+				}
 			}
 
 			// Settings & Audit
@@ -98,6 +111,7 @@ func InitRouter(
 			protected.PUT("/settings", settingHandler.SaveSettings)
 			protected.POST("/settings/ocr-test", settingHandler.TestOCR)
 			protected.POST("/settings/storage-test", settingHandler.TestStorage)
+			protected.POST("/settings/orphan-scan", settingHandler.OrphanScan)
 			protected.GET("/audit-logs", auditHandler.GetAuditLogs)
 
 			// Announcements

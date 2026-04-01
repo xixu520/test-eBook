@@ -30,5 +30,18 @@ func (r *AuditRepository) GetLogs(page, pageSize int, action string) ([]model.Au
 }
 
 func (r *AuditRepository) Create(log *model.AuditLog) error {
-	return r.db.Create(log).Error
+	err := r.db.Create(log).Error
+	if err != nil {
+		return err
+	}
+
+	// 限制最多保留 1000 条审计记录，异步执行删除以防阻塞
+	go func() {
+		// 删除 id <= (SELECT id FROM audit_logs ORDER BY id DESC LIMIT 1 OFFSET 1000) 的记录
+		// 这样确保永远只有最新的 1000 条保留
+		subQuery := r.db.Model(&model.AuditLog{}).Select("id").Order("id DESC").Offset(1000).Limit(1)
+		r.db.Where("id <= (?)", subQuery).Delete(&model.AuditLog{})
+	}()
+
+	return nil
 }
