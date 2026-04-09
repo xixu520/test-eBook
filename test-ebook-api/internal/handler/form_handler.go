@@ -27,6 +27,15 @@ func (h *FormHandler) GetForms(c *gin.Context) {
 	pkg.Success(c, forms)
 }
 
+func (h *FormHandler) GetGlobalForm(c *gin.Context) {
+	form, err := h.svc.GetOrCreateGlobalForm()
+	if err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, "加载全局属性失败")
+		return
+	}
+	pkg.Success(c, form)
+}
+
 func (h *FormHandler) CreateForm(c *gin.Context) {
 	var input struct {
 		Name        string `json:"name" binding:"required"`
@@ -88,6 +97,26 @@ func (h *FormHandler) SaveFormFields(c *gin.Context) {
 		return
 	}
 	if err := h.svc.SaveFormFields(uint(id), input.Fields); err != nil {
+		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
+		return
+	}
+	pkg.Success(c, nil)
+}
+
+func (h *FormHandler) BindCategoriesToForm(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		pkg.Error(c, http.StatusBadRequest, 400, "无效的表单ID")
+		return
+	}
+	var input struct {
+		CategoryIDs []uint `json:"category_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		pkg.Error(c, http.StatusBadRequest, 400, "参数错误")
+		return
+	}
+	if err := h.svc.BindCategoriesToForm(uint(id), input.CategoryIDs); err != nil {
 		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
 		return
 	}

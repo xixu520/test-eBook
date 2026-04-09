@@ -86,17 +86,7 @@ func (h *StandardHandler) DeleteCategory(c *gin.Context) {
 	pkg.Success(c, nil)
 }
 
-// --- History & Recycle Bin ---
-
-func (h *StandardHandler) GetFileHistory(c *gin.Context) {
-	number := c.Query("standard_no")
-	history, err := h.svc.GetFileHistory(number)
-	if err != nil {
-		pkg.Error(c, http.StatusInternalServerError, 500, err.Error())
-		return
-	}
-	pkg.Success(c, history)
-}
+// --- Recycle Bin ---
 
 func (h *StandardHandler) GetRecycleBin(c *gin.Context) {
 	files, err := h.svc.GetRecycleBin()

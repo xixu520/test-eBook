@@ -13,26 +13,7 @@
         <span class="zoom-text">{{ Math.round(scale * 100) }}%</span>
         <el-button :icon="Plus" @click="zoomIn" size="small" />
       </div>
-      <div class="version-switch" v-if="standardNo">
-        <el-dropdown trigger="click" @command="handleVersionChange">
-          <el-button size="small" :icon="Timer">
-            版本: {{ currentVersion }} <el-icon class="el-icon--right"><arrow-down /></el-icon>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item 
-                v-for="ver in versions" 
-                :key="ver.id" 
-                :command="ver"
-                :disabled="ver.version === currentVersion"
-              >
-                {{ ver.version }} ({{ ver.standard_no }})
-                <el-tag v-if="ver.is_latest" size="small" type="success" style="margin-left: 8px">最新</el-tag>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
+
       <el-button :icon="Download" @click="handleDownload" size="small" circle title="下载文件" />
     </div>
 
@@ -45,19 +26,14 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
-import { ArrowLeft, ArrowRight, Plus, Minus, Download, Timer, ArrowDown } from '@element-plus/icons-vue'
-import { getDocumentHistory } from '@/api/document'
+import { ArrowLeft, ArrowRight, Plus, Minus, Download } from '@element-plus/icons-vue'
 
 // 设置 worker 路径
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
 
 const props = defineProps({
-  url: { type: String, required: true },
-  standardNo: { type: String, default: '' },
-  currentVersion: { type: String, default: '' }
+  url: { type: String, required: true }
 })
-
-const emit = defineEmits(['version-change'])
 
 const loading = ref(true)
 const pdfDoc = ref<any>(null)
@@ -65,9 +41,6 @@ const currentPage = ref(1)
 const totalPages = ref(0)
 const scale = ref(1.0)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
-
-const versions = ref<any[]>([])
-const historyLoading = ref(false)
 
 const renderPage = async (num: number) => {
   if (!pdfDoc.value || !canvasRef.value) return
@@ -132,31 +105,10 @@ const handleDownload = () => {
   link.click()
 }
 
-const loadHistory = async () => {
-  if (!props.standardNo) return
-  historyLoading.value = true
-  try {
-    const res: any = await getDocumentHistory(props.standardNo)
-    versions.value = res
-  } catch (error) {
-    console.error('Failed to load history:', error)
-  } finally {
-    historyLoading.value = false
-  }
-}
-
-const handleVersionChange = (ver: any) => {
-  emit('version-change', ver)
-}
-
 watch(() => props.url, () => {
   currentPage.value = 1
   loadPdf()
 })
-
-watch(() => props.standardNo, () => {
-  loadHistory()
-}, { immediate: true })
 
 onMounted(() => {
   loadPdf()

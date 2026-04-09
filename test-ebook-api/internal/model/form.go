@@ -20,7 +20,9 @@ type FormField struct {
 	IsRequired  bool   `json:"is_required" gorm:"default:false"`
 	Options     string `json:"options" gorm:"type:text"` // JSON 数组，用于 select 选项
 	Order        int    `json:"order" gorm:"default:0"`
-	ShowInList   bool   `json:"show_in_list" gorm:"default:true"`
+	ShowInList   bool   `json:"show_in_list" gorm:"default:true"` // legacy, replaced by show_in_home/admin
+	ShowInHome   bool   `json:"show_in_home" gorm:"default:true"`
+	ShowInAdmin  bool   `json:"show_in_admin" gorm:"default:true"`
 	ShowInFilter bool   `json:"show_in_filter" gorm:"default:false"`
 	DefaultValue string `json:"default_value" gorm:"type:varchar(255)"`
 }

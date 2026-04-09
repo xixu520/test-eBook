@@ -24,6 +24,33 @@ func (s *FormService) GetFormByID(id uint) (*model.Form, error) {
 	return s.repo.FindFormByID(id)
 }
 
+// GetOrCreateGlobalForm 获取或创建全局唯一属性表单
+func (s *FormService) GetOrCreateGlobalForm() (*model.Form, error) {
+	forms, err := s.repo.GetFormsWithFields()
+	if err != nil {
+		return nil, err
+	}
+	// 优先查找名为"全局属性"的 Form
+	for i := range forms {
+		if forms[i].Name == "全局属性" {
+			return &forms[i], nil
+		}
+	}
+	// 若只有一个 Form，直接将其作为全局属性
+	if len(forms) == 1 {
+		return &forms[0], nil
+	}
+	// 否则创建一个新的全局属性 Form
+	form := &model.Form{
+		Name:        "全局属性",
+		Description: "系统全局文档属性配置",
+	}
+	if err := s.repo.CreateForm(form); err != nil {
+		return nil, err
+	}
+	return form, nil
+}
+
 func (s *FormService) CreateForm(name, description string) (*model.Form, error) {
 	form := &model.Form{
 		Name:        name,
@@ -71,4 +98,17 @@ func (s *FormService) SaveFormFields(formID uint, fields []model.FormField) erro
 	}
 
 	return s.repo.UpdateFormFields(formID, fields)
+}
+
+func (s *FormService) BindCategoriesToForm(formID uint, categoryIDs []uint) error {
+	if formID > 0 {
+		if _, err := s.repo.FindFormByID(formID); err != nil {
+			return errors.New("表单不存在")
+		}
+	}
+
+	// 批量更新分类的 form_id
+	// 直接使用 categoryRepo 的 DB 进行更新
+	db := s.categoryRepo.GetDB()
+	return db.Model(&model.Category{}).Where("id IN ?", categoryIDs).Update("form_id", formID).Error
 }

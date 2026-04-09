@@ -49,6 +49,12 @@ const router = createRouter({
           meta: { title: '分类管理' }
         },
         {
+          path: 'field-config',
+          name: 'AdminFieldConfig',
+          component: () => import('@/views/admin/field-config/FieldConfigPage.vue'),
+          meta: { title: '文档属性管理' }
+        },
+        {
           path: 'ocr',
           name: 'AdminOcr',
           component: () => import('@/views/admin/ocr/OcrTaskPage.vue'),

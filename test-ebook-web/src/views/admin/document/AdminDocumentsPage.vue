@@ -101,9 +101,9 @@
         <!-- 固有必选列 -->
         <el-table-column prop="title" label="文档名称" min-width="280" show-overflow-tooltip>
           <template #default="{ row }">
-            <div class="title-cell">
+            <div class="title-cell" @click="handleDetail(row)" style="cursor: pointer">
               <el-icon class="doc-icon"><Document /></el-icon>
-              <span>{{ row.title }}</span>
+              <el-button link type="primary" style="font-weight: 500; padding: 0;">{{ row.title }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -191,7 +191,7 @@
           </template>
         </el-table-column>
         
-        <el-table-column label="操作" width="240" align="center" fixed="right">
+        <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button link type="primary" size="small" :icon="View" :disabled="row.status !== 1" @click="handlePreview(row)">
@@ -200,18 +200,15 @@
               <el-button link type="primary" size="small" :icon="Edit" @click="handleEdit(row)">
                 编辑
               </el-button>
-              <el-button link type="primary" size="small" :icon="Timer" :disabled="row.status !== 1" @click="handleHistory(row)">
-                历史
-              </el-button>
-              
+
               <el-button v-if="row.status === 2" link type="warning" size="small" :icon="Refresh" @click="handleRetry(row)">
-                重试 OCR
+                重试OCR
               </el-button>
 
               <el-button v-if="row.sync_status === 'sync_failed'" link type="warning" size="small" :icon="Refresh" @click="handleRetrySync(row)">
                 重试同步
               </el-button>
-              
+
               <el-button link type="danger" size="small" :icon="Delete" @click="handleDelete(row)">
                 删除
               </el-button>
@@ -329,6 +326,52 @@
         </template>
       </el-dialog>
 
+      <!-- 文档详情弹窗 -->
+      <el-dialog
+        v-model="detailVisible"
+        title="文档详情"
+        width="750px"
+        custom-class="detail-dialog"
+      >
+        <template v-if="detailDoc">
+          <div class="detail-section">
+            <h4 class="section-title">核心属性</h4>
+            <el-descriptions :column="2" border>
+              <el-descriptions-item label="文档名称" :span="2">{{ detailDoc.title }}</el-descriptions-item>
+              <el-descriptions-item label="所属分类">{{ getCategoryName(detailDoc.category_id) }}</el-descriptions-item>
+              <el-descriptions-item label="文件大小">{{ formatFileSize(detailDoc.file_size) }}</el-descriptions-item>
+              <el-descriptions-item label="上传时间">{{ formatDate(detailDoc.created_at) }}</el-descriptions-item>
+              <el-descriptions-item label="处理状态">
+                <el-tag :type="getStatusType(detailDoc.status)" size="small">{{ getStatusText(detailDoc.status) }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="同步状态">
+                <el-tag :type="getSyncStatusType(detailDoc.sync_status || '')" size="small">{{ getSyncStatusText(detailDoc.sync_status || '') }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="核验状态">
+                <el-tag :type="getVerifyTagType(detailDoc.verify_status || '')" size="small">{{ getVerifyStatusText(detailDoc.verify_status || '') }}</el-tag>
+              </el-descriptions-item>
+            </el-descriptions>
+          </div>
+
+          <div v-if="detailDoc.field_values?.length" class="detail-section">
+            <h4 class="section-title">业务属性</h4>
+            <el-descriptions :column="2" border>
+              <el-descriptions-item 
+                v-for="fv in sortedFieldValues" 
+                :key="fv.field_id" 
+                :label="fv.field?.label || '未知属性'"
+              >
+                {{ fv.value }}
+              </el-descriptions-item>
+            </el-descriptions>
+          </div>
+        </template>
+        <template #footer>
+          <el-button @click="detailVisible = false">关闭</el-button>
+          <el-button type="primary" @click="handlePreview(detailDoc!)" :disabled="detailDoc?.status !== 1">预览文档</el-button>
+        </template>
+      </el-dialog>
+
       <!-- 分页区域 -->
       <div class="pagination-container">
         <el-pagination
@@ -354,11 +397,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { Search, Plus, Delete, Timer, View, Refresh, Grid, Document, Edit } from '@element-plus/icons-vue'
-import { getDocuments, deleteDocument, updateDocument, type Document as IDocument, getTaskStatus, retryOCR, retrySync } from '@/api/document'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { Search, Plus, Delete, View, Refresh, Grid, Document, Edit } from '@element-plus/icons-vue'
+import { getDocuments, deleteDocument, updateDocument, type Document as IDocument, getTaskStatus, retryOCR, retrySync, getDocumentDetail } from '@/api/document'
 import { getCategories } from '@/api/category'
-import { getForms, type Form as IForm, type FormField } from '@/api/form'
+import { getGlobalForm, type FormField } from '@/api/form'
 import type { Category } from '@/api/category'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import UploadDialog from '@/components/document/UploadDialog.vue'
@@ -368,13 +411,13 @@ const documentList = ref<IDocument[]>([])
 const searchKeyword = ref('')
 const searchCategoryID = ref<number | undefined>()
 const dynamicFilters = reactive<Record<number, any>>({})
-const forms = ref<IForm[]>([])
 const displayColumns = ref<FormField[]>([])
 const filterFields = ref<FormField[]>([])
 
 const selectedIds = ref<number[]>([])
 const categories = ref<Category[]>([])
 const categoryMap = ref<Record<number, string>>({})
+const globalFields = ref<FormField[]>([]) // 全局属性字段缓存
 
 const pagination = reactive({
   page: 1,
@@ -383,6 +426,17 @@ const pagination = reactive({
 })
 
 const uploadVisible = ref(false)
+
+// 详情相关
+const detailVisible = ref(false)
+const detailDoc = ref<IDocument | null>(null)
+const sortedFieldValues = computed(() => {
+  if (!detailDoc.value?.field_values) return []
+  return [...detailDoc.value.field_values].sort((a, b) => {
+    // 尽量按 ID 排序，保持一致性
+    return a.field_id - b.field_id
+  })
+})
 
 // 编辑相关
 const editFormVisible = ref(false)
@@ -404,7 +458,10 @@ const handleEdit = async (row: IDocument) => {
   editForm.category_id = row.category_id
   editForm.status = row.status
   editForm.verify_status = row.verify_status || 'pending'
-  
+
+  // 使用全局属性作为编辑字段
+  editFields.value = globalFields.value
+
   // 处理动态字段 (针对多选字段做 split)
   editForm.dynamic_fields = {}
   if (row.field_values) {
@@ -417,27 +474,12 @@ const handleEdit = async (row: IDocument) => {
       }
     })
   }
-  
-  await updateEditFields(row.category_id)
+
   editFormVisible.value = true
 }
 
-const updateEditFields = async (catID: number) => {
-  if (forms.value.length === 0) {
-    const res = await getForms()
-    forms.value = res as any
-  }
-  const cat = findCategory(categories.value, catID)
-  if (cat && cat.form_id) {
-    const f = forms.value.find(form => form.ID === cat.form_id)
-    editFields.value = f?.fields || []
-  } else {
-    editFields.value = []
-  }
-}
-
-const handleEditCategoryChange = (val: number) => {
-  updateEditFields(val)
+const handleEditCategoryChange = (_val: number) => {
+  // 全局属性不依赖分类，无需重新加载
 }
 
 const submitEdit = async () => {
@@ -472,6 +514,7 @@ const submitEdit = async () => {
 
 onMounted(async () => {
   await loadCategories()
+  await loadGlobalFields()
   loadData()
 })
 
@@ -497,30 +540,22 @@ const loadCategories = async () => {
   }
 }
 
-const handleCategoryChange = async (catID?: number) => {
-  if (forms.value.length === 0) {
-    const res = await getForms()
-    forms.value = res as any
+// 加载全局属性字段
+const loadGlobalFields = async () => {
+  try {
+    const res: any = await getGlobalForm()
+    globalFields.value = res.fields || []
+    // show_in_home=true 的字段用于展示列和筛选（决策5-C联动）
+    displayColumns.value = globalFields.value.filter((f: FormField) => f.show_in_home)
+    filterFields.value = displayColumns.value
+    editFields.value = globalFields.value // 编辑弹窗也使用全局属性
+  } catch (error) {
+    console.error('加载全局属性失败', error)
   }
+}
 
-  if (!catID) {
-    displayColumns.value = []
-    filterFields.value = []
-    handleSearch()
-    return
-  }
-
-  const cat = findCategory(categories.value, catID)
-  if (cat && cat.form_id) {
-    const f = forms.value.find(form => form.ID === cat.form_id)
-    if (f) {
-      displayColumns.value = f.fields.filter(field => field.show_in_list)
-      filterFields.value = f.fields.filter(field => field.show_in_filter)
-    }
-  } else {
-    displayColumns.value = []
-    filterFields.value = []
-  }
+const handleCategoryChange = (_catID?: number) => {
+  // 分类仅用于过滤文档，不再影响展示列（全局属性已固定）
   handleSearch()
 }
 
@@ -704,12 +739,23 @@ const handleRetrySync = async (row: IDocument) => {
   }
 }
 
-const handleHistory = (row: IDocument) => {
-  ElMessage.info(`查看标准 ${row.number} 的历史版本记录（敬请期待）`)
+const handleDetail = async (row: IDocument) => {
+  try {
+    const res: any = await getDocumentDetail(row.id)
+    const doc = res.document
+    // 合并独立返回的 field_values 到 document（优先使用独立返回的，比模型自带的更完整）
+    const fv = res.field_values || doc.field_values || []
+    // 过滤掉 field.label 为空的废弃数据（引用了已删除字段的旧值）
+    doc.field_values = fv.filter((item: any) => item.field?.label)
+    detailDoc.value = doc
+    detailVisible.value = true
+  } catch (error) {
+    ElMessage.error('加载详情失败')
+  }
 }
 
 const handlePreview = (row: IDocument) => {
-  ElMessage.info(`正准备预览标准 ${row.number} 的核心内容（敬请期待）`)
+  ElMessage.info(`正准备预览标准 ${row.title} 的核心内容（敬请期待）`)
 }
 
 const handleDelete = (row: IDocument) => {

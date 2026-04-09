@@ -200,8 +200,8 @@ watch(() => form.category_id, async (newVal) => {
 const findCategory = (tree: any[], id: number): any => {
   for (const node of tree) {
     if (node.ID === id) return node
-    if (node.Children?.length) {
-      const found = findCategory(node.Children, id)
+    if (node.children?.length) {
+      const found = findCategory(node.children, id)
       if (found) return found
     }
   }
@@ -251,18 +251,6 @@ const startUpload = async () => {
       finalizedFields[Number(key)] = Array.isArray(val) ? val.join(',') : String(val)
     })
     formData.append('dynamic_fields', JSON.stringify(finalizedFields))
-
-    // 映射兼容旧字段（可选，便于后端迁移期稳定）
-    const getFieldVal = (key: string) => {
-      const field = currentFormFields.value.find(f => f.field_key === key)
-      return field ? form.dynamic_fields[field.ID!] : ''
-    }
-    formData.append('number', getFieldVal('number'))
-    formData.append('year', getFieldVal('year'))
-    formData.append('version', getFieldVal('version'))
-    formData.append('publisher', getFieldVal('publisher'))
-    formData.append('implementation_date', getFieldVal('implementation_date'))
-    formData.append('implementation_status', getFieldVal('implementation_status'))
 
     return uploadFile(formData, (progressEvent) => {
       const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)

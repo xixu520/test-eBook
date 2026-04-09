@@ -2,6 +2,7 @@
   <div class="home-page">
     <!-- 搜索与筛选区域 -->
     <el-card class="filter-card" shadow="never">
+      <!-- 移动端折叠版 -->
       <el-collapse v-if="isMobile" v-model="activeFilters" class="mobile-filter-collapse">
         <el-collapse-item name="filters">
           <template #title>
@@ -25,25 +26,21 @@
                   check-strictly
                   node-key="ID"
                   :props="{ label: 'name', value: 'ID' }"
-                  @change="handleCategoryChange"
+                  @change="handleCategoryFilter"
                 />
               </el-form-item>
-              <!-- 动态字段 (Mobile) -->
+              <!-- 动态筛选（全局属性 show_in_home=true 的字段） -->
               <template v-for="f in filterFields" :key="f.ID">
                 <el-form-item :label="f.label">
                   <el-select v-if="f.field_type === 'select'" v-model="dynamicFilters[f.ID!]" clearable style="width: 100%">
-                    <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+                    <el-option v-for="opt in (f.options || '').split(',').filter(v => !!v.trim())" :key="opt" :label="opt.trim()" :value="opt.trim()" />
                   </el-select>
-                  <el-select 
-                    v-else-if="f.field_type === 'checkbox'" 
-                    v-model="dynamicFilters[f.ID!]" 
-                    multiple
-                    collapse-tags
-                    collapse-tags-tooltip
-                    clearable 
-                    style="width: 100%"
+                  <el-select
+                    v-else-if="f.field_type === 'checkbox'"
+                    v-model="dynamicFilters[f.ID!]"
+                    multiple collapse-tags collapse-tags-tooltip clearable style="width: 100%"
                   >
-                    <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+                    <el-option v-for="opt in (f.options || '').split(',').filter(v => !!v.trim())" :key="opt" :label="opt.trim()" :value="opt.trim()" />
                   </el-select>
                   <el-date-picker v-else-if="f.field_type === 'date'" v-model="dynamicFilters[f.ID!]" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
                   <el-input v-else v-model="dynamicFilters[f.ID!]" placeholder="输入过滤值" clearable />
@@ -58,11 +55,12 @@
         </el-collapse-item>
       </el-collapse>
 
+      <!-- 桌面端行内版 -->
       <el-form v-else :inline="true" :model="filters" class="filter-form">
         <el-form-item label="关键字">
           <el-input v-model="filters.keyword" placeholder="搜索关键词" clearable @keyup.enter="loadData" />
         </el-form-item>
-        
+
         <el-form-item label="分类">
           <el-tree-select
             v-model="filters.category_id"
@@ -72,14 +70,14 @@
             check-strictly
             node-key="ID"
             :props="{ label: 'name', value: 'ID' }"
-            @change="handleCategoryChange"
+            @change="handleCategoryFilter"
           />
         </el-form-item>
-        
-        <!-- 动态筛选器 -->
+
+        <!-- 全局属性动态筛选器（show_in_home = true 的字段） -->
         <template v-for="f in filterFields" :key="f.ID">
           <el-form-item :label="f.label">
-            <el-select 
+            <el-select
               v-if="f.field_type === 'select'"
               v-model="dynamicFilters[f.ID!]"
               placeholder="请选择"
@@ -87,20 +85,16 @@
               style="width: 140px"
               @change="loadData"
             >
-              <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+              <el-option v-for="opt in (f.options || '').split(',').filter(v => !!v.trim())" :key="opt" :label="opt.trim()" :value="opt.trim()" />
             </el-select>
-            <el-select 
-              v-else-if="f.field_type === 'checkbox'" 
-              v-model="dynamicFilters[f.ID!]" 
-              multiple
-              collapse-tags
-              collapse-tags-tooltip
-              clearable 
-              placeholder="多选"
+            <el-select
+              v-else-if="f.field_type === 'checkbox'"
+              v-model="dynamicFilters[f.ID!]"
+              multiple collapse-tags collapse-tags-tooltip clearable placeholder="多选"
               style="width: 140px"
               @change="loadData"
             >
-              <el-option v-for="opt in (f.options || '').split(',')" :key="opt" :label="opt" :value="opt" />
+              <el-option v-for="opt in (f.options || '').split(',').filter(v => !!v.trim())" :key="opt" :label="opt.trim()" :value="opt.trim()" />
             </el-select>
             <el-date-picker
               v-else-if="f.field_type === 'date'"
@@ -111,17 +105,17 @@
               style="width: 140px"
               @change="loadData"
             />
-            <el-input 
-              v-else 
-              v-model="dynamicFilters[f.ID!]" 
-              placeholder="搜索值" 
-              clearable 
+            <el-input
+              v-else
+              v-model="dynamicFilters[f.ID!]"
+              placeholder="搜索值"
+              clearable
               style="width: 140px"
               @keyup.enter="loadData"
             />
           </el-form-item>
         </template>
-        
+
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="loadData">查询</el-button>
           <el-button :icon="RefreshLeft" @click="resetFilters">重置</el-button>
@@ -132,12 +126,16 @@
     <!-- 操作工具栏 -->
     <div class="action-bar" :class="{ 'is-mobile': isMobile }">
       <div class="left">
-        <el-button type="primary" :icon="Upload" v-if="canUpload" @click="uploadVisible = true">{{ isMobile ? '' : '上传文件' }}</el-button>
-        <el-button-group v-if="isMobile">
-          <el-button :icon="Download" :disabled="!selectedIds.length" />
-        </el-button-group>
-        <template v-else>
+        <el-button type="primary" :icon="Upload" v-if="canUpload" @click="uploadVisible = true">
+          {{ isMobile ? '' : '上传文件' }}
+        </el-button>
+        <template v-if="!isMobile">
           <el-button :icon="Download" :disabled="!selectedIds.length">批量下载</el-button>
+        </template>
+        <template v-else>
+          <el-button-group>
+            <el-button :icon="Download" :disabled="!selectedIds.length" />
+          </el-button-group>
         </template>
       </div>
     </div>
@@ -152,41 +150,43 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      
+
+      <!-- 文档名称列：可点击打开详情 -->
       <el-table-column prop="title" label="文档名称" min-width="250" show-overflow-tooltip>
         <template #default="{ row }">
-           <el-button link type="primary" style="font-weight:600" @click="handleShowDetail(row)">{{ row.title }}</el-button>
+          <el-button link type="primary" style="font-weight: 600; text-align: left; white-space: normal; height: auto;" @click="handleShowDetail(row)">
+            {{ row.title }}
+          </el-button>
         </template>
       </el-table-column>
 
-      <!-- 动态展示列 -->
+      <!-- 全局属性动态展示列（show_in_home = true） -->
       <template v-for="col in displayColumns" :key="col.ID">
         <el-table-column :label="col.label" min-width="150" show-overflow-tooltip v-if="!isMobile">
           <template #default="{ row }">
             <template v-if="col.field_type === 'checkbox'">
               <div class="tag-group">
-                <el-tag 
-                  v-for="tag in (getDynamicFieldValue(row, col.ID!) || '').split(',').filter((v: string) => !!v)" 
-                  :key="tag" 
-                  size="small" 
+                <el-tag
+                  v-for="tag in (getDynamicFieldValue(row, col.ID!) || '').split(',').filter((v: string) => !!v)"
+                  :key="tag"
+                  size="small"
                   class="field-tag"
-                >
-                  {{ tag }}
-                </el-tag>
+                >{{ tag }}</el-tag>
               </div>
             </template>
-            <template v-else>
-              {{ getDynamicFieldValue(row, col.ID!) }}
-            </template>
+            <template v-else>{{ getDynamicFieldValue(row, col.ID!) }}</template>
           </template>
         </el-table-column>
       </template>
 
+      <!-- 分类 -->
       <el-table-column label="分类" width="130" v-if="!isMobile">
         <template #default="{ row }">
           <el-tag size="small" type="info" round effect="plain">{{ row.category?.name || '未分类' }}</el-tag>
         </template>
       </el-table-column>
+
+      <!-- 实施状态 -->
       <el-table-column prop="implementation_status" label="实施状态" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="getStatusTagType(row.implementation_status)" size="small">
@@ -194,34 +194,21 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="OCR 状态" width="100" align="center" v-if="!isMobile">
+
+      <!-- 操作列 -->
+      <el-table-column label="操作" :width="isMobile ? 80 : 160" :fixed="isMobile ? false : 'right'" align="center">
         <template #default="{ row }">
-          <el-tag :type="getOcrTagType(row.status)" size="small">
-            {{ getOcrStatusText(row.status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="verify_status" label="核验状态" width="100" align="center" v-if="!isMobile">
-        <template #default="{ row }">
-          <el-tag :type="getVerifyTagType(row.verify_status)" effect="plain" size="small">
-            {{ getVerifyStatusText(row.verify_status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" :width="isMobile ? 80 : 200" :fixed="isMobile ? false : 'right'" align="center">
-        <template #default="{ row }">
-          <template v-if="!isMobile">
+          <div v-if="!isMobile" class="action-btns">
             <el-button link type="primary" :icon="View" :disabled="row.status !== 1" @click="handlePreview(row)">预览</el-button>
-            <el-button link type="primary" :icon="Timer" :disabled="row.status !== 1" @click="handleShowHistory(row)">历史</el-button>
+            <el-divider direction="vertical" />
             <el-button link type="primary" :icon="Download" @click="handleDownload(row)">下载</el-button>
-          </template>
+          </div>
           <el-dropdown v-else trigger="click">
             <el-button link type="primary" :icon="MoreFilled" />
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item :icon="View" :disabled="row.status !== 1" @click="handlePreview(row)">预览</el-dropdown-item>
                 <el-dropdown-item :icon="Download" @click="handleDownload(row)">下载</el-dropdown-item>
-                <el-dropdown-item :icon="Timer" :disabled="row.status !== 1" @click="handleShowHistory(row)">历史</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -242,6 +229,7 @@
         @current-change="loadData"
       />
     </div>
+
     <!-- PDF 预览弹窗 -->
     <el-dialog
       v-model="previewVisible"
@@ -250,13 +238,7 @@
       top="5vh"
       destroy-on-close
     >
-      <PdfPreview 
-        v-if="previewVisible" 
-        :url="currentDoc?.url" 
-        :standard-no="currentDoc?.standard_no"
-        :current-version="currentDoc?.version"
-        @version-change="handlePreview"
-      />
+      <PdfPreview v-if="previewVisible" :url="currentDoc?.url" />
     </el-dialog>
 
     <!-- 文档上传弹窗 -->
@@ -266,59 +248,62 @@
       @success="loadData"
     />
 
-    <!-- 历史版本弹窗 -->
-    <el-dialog
-      v-model="historyVisible"
-      :title="`历史版本 - ${currentHistoryBase?.title}`"
-      width="600px"
-    >
-      <el-table :data="historyList" v-loading="historyLoading" border stripe>
-        <el-table-column prop="version" label="版本" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.is_latest ? 'success' : 'info'">{{ row.version }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="number" label="标准号" width="180" />
-        <el-table-column prop="implementation_date" label="实施日期" width="120" />
-        <el-table-column label="操作" align="center">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="handlePreview(row)">预览</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-dialog>
-
     <!-- 文档详情弹窗 -->
     <el-dialog
       v-model="detailVisible"
       title="文档详情"
-      width="500px"
-      custom-class="detail-dialog"
+      width="700px"
+      destroy-on-close
     >
       <div v-if="currentDoc" class="detail-container">
-        <div class="detail-header">
-           <el-icon class="doc-icon"><Document /></el-icon>
-           <div class="title">{{ currentDoc.title }}</div>
+        <!-- 系统固有属性 -->
+        <div class="detail-section">
+          <h4 class="section-title">系统属性</h4>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="文档名称" :span="2">{{ currentDoc.title }}</el-descriptions-item>
+            <el-descriptions-item label="所属分类">{{ currentDoc.category?.name || '未分类' }}</el-descriptions-item>
+            <el-descriptions-item label="文件大小">{{ formatFileSize(currentDoc.file_size) }}</el-descriptions-item>
+            <el-descriptions-item label="上传时间">{{ formatDate(currentDoc.created_at) }}</el-descriptions-item>
+            <el-descriptions-item label="实施状态">
+              <el-tag :type="getStatusTagType(currentDoc.implementation_status)" size="small">
+                {{ getStatusText(currentDoc.implementation_status) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="核验状态">
+              <el-tag :type="getVerifyTagType(currentDoc.verify_status)" size="small">
+                {{ getVerifyStatusText(currentDoc.verify_status) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="处理状态">
+              <el-tag :type="getOcrTagType(currentDoc.status)" size="small">
+                {{ getOcrStatusText(currentDoc.status) }}
+              </el-tag>
+            </el-descriptions-item>
+          </el-descriptions>
         </div>
-        <el-descriptions :column="1" border>
-          <el-descriptions-item label="所属分类">
-            {{ currentDoc.category?.name || '未分类' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="文件大小">
-            {{ (currentDoc.file_size / 1024 / 1024).toFixed(2) }} MB
-          </el-descriptions-item>
-          <el-descriptions-item label="上传时间">
-            {{ currentDoc.created_at }}
-          </el-descriptions-item>
-          <!-- 动态分配解析展示 -->
-          <el-descriptions-item v-for="fv in (currentDoc.field_values || [])" :key="fv.field_id" :label="fv.field?.label || '属性'">
-             {{ fv.value }}
-          </el-descriptions-item>
-        </el-descriptions>
+
+        <!-- 自定义属性值 -->
+        <div v-if="currentDoc.field_values?.length" class="detail-section" style="margin-top: 20px">
+          <h4 class="section-title">扩展属性</h4>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item
+              v-for="fv in currentDoc.field_values"
+              :key="fv.field_id"
+              :label="fv.field?.label || '属性'"
+            >
+              <template v-if="fv.value && fv.value.includes(',')">
+                <el-tag v-for="tag in fv.value.split(',')" :key="tag" size="small" style="margin-right: 4px">{{ tag }}</el-tag>
+              </template>
+              <template v-else>{{ fv.value || '—' }}</template>
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
       </div>
       <template #footer>
-        <el-button type="primary" @click="handlePreview(currentDoc)">预览文档内容</el-button>
         <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button type="primary" :disabled="currentDoc?.status !== 1" @click="handlePreview(currentDoc)">
+          预览文档
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -326,12 +311,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch } from 'vue'
-import { 
-  Search, RefreshLeft, Upload, Download, 
-  View, Timer, MoreFilled, Document
+import {
+  Search, RefreshLeft, Upload, Download,
+  View, MoreFilled
 } from '@element-plus/icons-vue'
-import { getDocuments, getDocumentHistory } from '@/api/document'
-import { getForms, type Form as IForm, type FormField } from '@/api/form'
+import { getDocuments, getDocumentDetail } from '@/api/document'
+import { getGlobalForm, type FormField } from '@/api/form'
 import { useCategoryStore } from '@/stores/category'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute } from 'vue-router'
@@ -354,11 +339,7 @@ const selectedIds = ref<number[]>([])
 const previewVisible = ref(false)
 const detailVisible = ref(false)
 const uploadVisible = ref(false)
-const historyVisible = ref(false)
 const currentDoc = ref<any>(null)
-const currentHistoryBase = ref<any>(null)
-const historyList = ref<any[]>([])
-const historyLoading = ref(false)
 
 const filters = reactive({
   keyword: (route.query.keyword as string) || '',
@@ -366,13 +347,13 @@ const filters = reactive({
 })
 
 const dynamicFilters = reactive<Record<number, any>>({})
+// 全局属性中 show_in_home=true 的字段，同时作为展示列和筛选项（决策5-C）
 const displayColumns = ref<FormField[]>([])
-const filterFields = ref<FormField[]>([])
-const allForms = ref<IForm[]>([])
+const filterFields = computed(() => displayColumns.value) // 联动：展示列即筛选列
 
 const activeFilters = ref([])
 const hasActiveFilters = computed(() => {
-  return filters.keyword || Object.values(dynamicFilters).some(v => !!v)
+  return filters.keyword || filters.category_id || Object.values(dynamicFilters).some(v => !!v)
 })
 
 const pagination = reactive({
@@ -381,8 +362,19 @@ const pagination = reactive({
   total: 0
 })
 
+// 加载全局属性配置
+const loadGlobalFields = async () => {
+  try {
+    const res: any = await getGlobalForm()
+    displayColumns.value = (res.fields || []).filter((f: FormField) => f.show_in_home)
+  } catch (error) {
+    console.error('加载全局属性失败', error)
+  }
+}
+
 onMounted(() => {
   categoryStore.fetchCategories()
+  loadGlobalFields()
   loadData()
 })
 
@@ -393,9 +385,7 @@ watch(() => route.query, (newQuery) => {
   loadData()
 })
 
-const categoryTree = computed(() => {
-  return categoryStore.categories
-})
+const categoryTree = computed(() => categoryStore.categories)
 
 const loadData = async () => {
   loading.value = true
@@ -406,7 +396,7 @@ const loadData = async () => {
       keyword: filters.keyword,
       category_id: filters.category_id ? Number(filters.category_id) : undefined
     }
-    
+
     // 动态属性过滤
     Object.keys(dynamicFilters).forEach(fid => {
       if (dynamicFilters[Number(fid)]) {
@@ -424,49 +414,22 @@ const loadData = async () => {
   }
 }
 
-const handleCategoryChange = async (catID: number) => {
-  if (allForms.value.length === 0) {
-    const res = await getForms()
-    allForms.value = res as any
-  }
-  
-  const cat = findCategory(categoryTree.value, catID)
-  if (cat && cat.form_id) {
-    const f = allForms.value.find(form => form.ID === cat.form_id)
-    if (f) {
-      displayColumns.value = f.fields.filter(field => field.show_in_list)
-      filterFields.value = f.fields.filter(field => field.show_in_filter)
-    }
-  } else {
-    displayColumns.value = []
-    filterFields.value = []
-  }
+// 分类筛选：仅过滤文档，不再影响展示列（全局属性已固定）
+const handleCategoryFilter = () => {
   loadData()
 }
 
-const findCategory = (tree: any[], id: number): any => {
-  for (const node of tree) {
-    if (node.ID === id) return node
-    if (node.children?.length) {
-      const found = findCategory(node.children, id)
-      if (found) return found
-    }
-  }
-  return null
-}
-
 const getDynamicFieldValue = (row: any, fieldID: number) => {
-  if (!row.field_values) return '-'
+  if (!row.field_values) return '—'
   const fv = row.field_values.find((v: any) => v.field_id === fieldID)
-  return fv ? fv.value : '-'
+  return fv ? fv.value : '—'
 }
 
 const resetFilters = () => {
   filters.keyword = ''
   filters.category_id = ''
   Object.keys(dynamicFilters).forEach(k => delete dynamicFilters[Number(k)])
-  displayColumns.value = []
-  filterFields.value = []
+  pagination.page = 1
   loadData()
 }
 
@@ -474,35 +437,50 @@ const handleSelectionChange = (selection: any[]) => {
   selectedIds.value = selection.map(item => item.id)
 }
 
-const handleShowDetail = (row: any) => {
-  currentDoc.value = row
-  detailVisible.value = true
+const handleShowDetail = async (row: any) => {
+  try {
+    const res: any = await getDocumentDetail(row.id)
+    const doc = res.document
+    const fv = res.field_values || doc.field_values || []
+    doc.field_values = fv.filter((item: any) => item.field?.label)
+    currentDoc.value = doc
+    detailVisible.value = true
+  } catch (error) {
+    ElMessage.error('获取详情失败')
+  }
 }
 
 const handlePreview = (row: any) => {
   currentDoc.value = {
     ...row,
-    url: `/api/v1/documents/${row.ID}/preview`
+    url: `/api/v1/documents/${row.id || row.ID}/preview`
   }
   previewVisible.value = true
 }
 
-const handleShowHistory = async (row: any) => {
-  currentHistoryBase.value = row
-  historyVisible.value = true
-  historyLoading.value = true
-  try {
-    const res: any = await getDocumentHistory(row.number)
-    historyList.value = res
-  } catch (error) {
-    ElMessage.error('获取历史版本失败')
-  } finally {
-    historyLoading.value = false
-  }
+const handleDownload = (row: any) => {
+  window.open(`/api/v1/documents/${row.id || row.ID}/download`, '_blank')
 }
 
-const handleDownload = (row: any) => {
-  window.open(`/api/v1/documents/${row.ID}/download`, '_blank')
+// ---- 格式化工具函数 ----
+
+const formatFileSize = (bytes: number): string => {
+  if (!bytes) return '—'
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / 1024 / 1024).toFixed(2) + ' MB'
+}
+
+const formatDate = (dateString: string): string => {
+  if (!dateString) return '—'
+  try {
+    return new Date(dateString).toLocaleString('zh-CN', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    })
+  } catch {
+    return dateString
+  }
 }
 
 const getOcrTagType = (status: number) => {
@@ -547,57 +525,111 @@ const getStatusText = (status: string) => {
 <style scoped lang="scss">
 .home-page {
   padding: 20px;
-  
+
   .filter-card {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+
     :deep(.el-card__body) {
-      padding-bottom: 2px;
+      padding-bottom: 4px;
     }
-    
+
     .mobile-filter-header {
       display: flex;
       align-items: center;
       gap: 8px;
       font-size: 14px;
     }
-    
+
     .filter-actions {
       display: flex;
       gap: 10px;
       margin-top: 10px;
+
       .el-button {
         flex: 1;
       }
     }
+
+    .filter-form {
+      :deep(.el-form-item) {
+        margin-bottom: 12px;
+      }
+    }
   }
-  
+
   .action-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-    
+    margin-bottom: 14px;
+
     &.is-mobile {
       padding: 0 5px;
     }
-    
+
     .left {
       display: flex;
       gap: 10px;
     }
   }
-  
-  .mono-font {
-    font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
+
+  .action-btns {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    white-space: nowrap;
+
+    :deep(.el-divider--vertical) {
+      margin: 0 4px;
+    }
   }
-  
+
+  .tag-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+
+    .field-tag {
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  // 表格行距优化
+  :deep(.el-table) {
+    .el-table__cell {
+      padding: 10px 0;
+    }
+    .el-table__header th {
+      padding: 12px 0;
+      background-color: var(--el-fill-color-light);
+      font-weight: 600;
+    }
+  }
+
   .pagination-container {
     margin-top: 20px;
     display: flex;
     justify-content: flex-end;
-    
+
     &.is-mobile {
       justify-content: center;
+    }
+  }
+
+  // 详情弹窗样式
+  .detail-container {
+    .detail-section {
+      .section-title {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--el-text-color-regular);
+        padding-left: 10px;
+        border-left: 3px solid var(--el-color-primary);
+      }
     }
   }
 }

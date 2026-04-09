@@ -58,20 +58,44 @@ func (r *FormRepository) DeleteFormField(id uint) error {
 
 func (r *FormRepository) UpdateFormFields(formID uint, fields []model.FormField) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// 简单的做法：先删除所有旧的，再插入新的（或者根据ID更新）
-		// 考虑到可能涉及ID变化，这里采用删除+重新创建或者显式更新
-		if err := tx.Where("form_id = ?", formID).Delete(&model.FormField{}).Error; err != nil {
+		// 获取当前已有字段
+		var existing []model.FormField
+		if err := tx.Where("form_id = ?", formID).Find(&existing).Error; err != nil {
 			return err
 		}
+
+		existingMap := make(map[uint]bool)
+		for _, e := range existing {
+			existingMap[e.ID] = true
+		}
+
+		// 收集本次提交中保留的 ID
+		keepIDs := make(map[uint]bool)
 		for i := range fields {
 			fields[i].FormID = formID
-			fields[i].ID = 0 // 重置 ID 确保创建
-		}
-		if len(fields) > 0 {
-			if err := tx.Create(&fields).Error; err != nil {
-				return err
+			if fields[i].ID > 0 {
+				keepIDs[fields[i].ID] = true
+				// 更新已有字段
+				if err := tx.Save(&fields[i]).Error; err != nil {
+					return err
+				}
+			} else {
+				// 新增字段
+				if err := tx.Create(&fields[i]).Error; err != nil {
+					return err
+				}
 			}
 		}
+
+		// 删除本次未提交的旧字段
+		for id := range existingMap {
+			if !keepIDs[id] {
+				if err := tx.Delete(&model.FormField{}, id).Error; err != nil {
+					return err
+				}
+			}
+		}
+
 		return nil
 	})
 }

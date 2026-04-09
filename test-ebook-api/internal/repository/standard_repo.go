@@ -143,13 +143,13 @@ func (r *StandardRepository) ListFiles(categoryID uint, year, keyword, publisher
 	}
 
 	offset := (page - 1) * pageSize
-	err = db.Preload("Category").Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&files).Error
+	err = db.Preload("Category").Preload("FieldValues").Preload("FieldValues.Field").Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&files).Error
 	return files, total, err
 }
 
 func (r *StandardRepository) FindFileByID(id uint) (*model.StandardFile, error) {
 	var file model.StandardFile
-	err := r.db.Preload("Category").First(&file, id).Error
+	err := r.db.Preload("Category").Preload("FieldValues").Preload("FieldValues.Field").First(&file, id).Error
 	return &file, err
 }
 
@@ -165,11 +165,7 @@ func (r *StandardRepository) DeleteFile(id uint) error {
 	return r.db.Delete(&model.StandardFile{}, id).Error
 }
 
-func (r *StandardRepository) GetFileHistory(number string) ([]model.StandardFile, error) {
-	var files []model.StandardFile
-	err := r.db.Where("number = ?", number).Order("created_at DESC").Find(&files).Error
-	return files, err
-}
+
 
 func (r *StandardRepository) GetRecycleBinFiles() ([]model.StandardFile, error) {
 	var files []model.StandardFile

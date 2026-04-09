@@ -40,4 +40,5 @@ type StandardFile struct {
 	ImplementationStatus string   `json:"implementation_status" gorm:"type:varchar(50);default:'current'"` // 实施状态(current, obsolete, upcoming)
 	VerifyStatus         string   `json:"verify_status" gorm:"type:varchar(50);default:'pending'"` // 核验状态(pending, pass, retry)
 	SyncStatus           string   `json:"sync_status" gorm:"type:varchar(20);default:'synced'"`    // 同步状态(synced, pending_sync, syncing, sync_failed)
+	FieldValues          []DocumentFieldValue `json:"field_values" gorm:"foreignKey:DocumentID"`   // 动态属性值
 }

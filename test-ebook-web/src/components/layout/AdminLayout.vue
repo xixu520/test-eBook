@@ -24,6 +24,11 @@
           <el-icon><Folder /></el-icon>
           <template #title>分类管理</template>
         </el-menu-item>
+
+        <el-menu-item index="/admin/field-config" v-if="hasAccess(['admin', 'editor'])">
+          <el-icon><Setting /></el-icon>
+          <template #title>属性管理</template>
+        </el-menu-item>
         
         <el-menu-item index="/admin/ocr" v-if="hasAccess(['admin', 'editor'])">
           <el-icon><Cpu /></el-icon>

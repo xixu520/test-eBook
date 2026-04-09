@@ -56,7 +56,6 @@ func InitRouter(
 			{
 				documents.GET("", standardHandler.ListFiles)
 				documents.POST("/upload", standardHandler.UploadFile)
-				documents.GET("/history", standardHandler.GetFileHistory)
 				documents.GET("/:id", standardHandler.GetFileDetail)
 				documents.PUT("/:id", standardHandler.UpdateFile)
 				documents.GET("/:id/download", standardHandler.DownloadFile)
@@ -101,10 +100,12 @@ func InitRouter(
 				forms := admin.Group("/forms")
 				{
 					forms.GET("", formHandler.GetForms)
+					forms.GET("/global", formHandler.GetGlobalForm)
 					forms.POST("", formHandler.CreateForm)
 					forms.PUT("/:id", formHandler.UpdateForm)
 					forms.DELETE("/:id", formHandler.DeleteForm)
 					forms.POST("/:id/fields", formHandler.SaveFormFields)
+					forms.PUT("/:id/categories", formHandler.BindCategoriesToForm)
 				}
 			}
 

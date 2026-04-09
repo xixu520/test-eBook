@@ -112,13 +112,7 @@ export function getActiveAnnouncement() {
   })
 }
 
-export function getDocumentHistory(standardNo: string) {
-  return request({
-    url: '/documents/history',
-    method: 'get',
-    params: { standard_no: standardNo },
-  })
-}
+
 
 export function getRecycleBinDocuments() {
   return request({

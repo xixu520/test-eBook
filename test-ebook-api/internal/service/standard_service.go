@@ -436,12 +436,7 @@ func (s *StandardService) RetryOCR(docID uint) (string, error) {
 	return taskID, nil
 }
 
-func (s *StandardService) GetFileHistory(number string) ([]model.StandardFile, error) {
-	if number == "" {
-		return nil, errors.New("标准编号不能为空")
-	}
-	return s.repo.GetFileHistory(number)
-}
+
 
 func (s *StandardService) GetFileStream(filePath string, syncStatus string) (io.ReadCloser, error) {
 	// 如果文件还在 staging 中（未同步完成），从 staging 读取
